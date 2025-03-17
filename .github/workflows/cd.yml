@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
     tags:
-      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+      - 'v*'
 
 jobs:
   build:
@@ -19,6 +19,7 @@ jobs:
       env:
         UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
         UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        UNITY_VERSION: 2021.3.4f1
     
     - name: Cache Library
       uses: actions/cache@v3
@@ -29,8 +30,12 @@ jobs:
           Library-
     
     - name: Build Unity Package
-      uses: game-ci/unity-builder@v3
+      uses: game-ci/unity-builder@v2
+      env:
+        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
       with:
+        projectPath: .
+        unityVersion: 2021.3.4f1
         targetPlatform: StandaloneWindows64
         buildName: USDSceneOptimizer
         buildsPath: build
