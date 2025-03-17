@@ -40,10 +40,14 @@ jobs:
         githubToken: ${{ secrets.GITHUB_TOKEN }}
         customParameters: -nographics -batchmode
     
-    - name: Upload Test Results
-      uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2 # v2.3.1
+    - name: Store Test Results
+      if: always()
+      run: |
+        mkdir -p ./test-results
+        cp -r artifacts/* ./test-results/ || true
+    
+    - uses: actions/upload-artifact@v1.0.0
       if: always()
       with:
         name: Test Results
-        path: artifacts
-        retention-days: 7 
+        path: ./test-results 
