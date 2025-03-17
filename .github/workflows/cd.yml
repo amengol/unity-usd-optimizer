@@ -1,0 +1,45 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+jobs:
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Unity
+      uses: game-ci/setup-unity@v3
+      with:
+        unity-version: 2022.3.0f1
+    
+    - name: Cache Library
+      uses: actions/cache@v3
+      with:
+        path: Library
+        key: Library-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+        restore-keys: |
+          Library-
+    
+    - name: Build Unity Package
+      uses: game-ci/unity-builder@v3
+      with:
+        targetPlatform: StandaloneWindows64
+        buildName: USDSceneOptimizer
+        buildsPath: build
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: build/StandaloneWindows64/Unity-USD-Scene-Optimizer.unitypackage
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

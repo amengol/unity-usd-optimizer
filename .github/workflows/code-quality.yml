@@ -1,0 +1,36 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    name: Run Linters
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '6.0.x'
+    
+    - name: Install dotnet-format
+      run: dotnet tool install -g dotnet-format
+    
+    - name: Check Formatting
+      run: dotnet format --check Assets/Scripts/
+    
+    - name: Run StyleCop
+      run: |
+        dotnet tool install -g dotnet-stylescop
+        dotnet stylescop Assets/Scripts/
+    
+    - name: Run Code Analysis
+      run: |
+        dotnet tool install -g dotnet-analyzer
+        dotnet analyze Assets/Scripts/ 
