@@ -38,6 +38,7 @@ jobs:
         unityVersion: 2021.3.4f1
         artifactsPath: artifacts
         githubToken: ${{ secrets.GITHUB_TOKEN }}
+        customParameters: -nographics -batchmode
     
     - name: Upload Test Results
       uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2 # v2.3.1

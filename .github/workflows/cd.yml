@@ -39,20 +39,14 @@ jobs:
         targetPlatform: StandaloneWindows64
         buildName: USDSceneOptimizer
         buildsPath: build
-    
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2 # v2.3.1
-      with:
-        name: Build
-        path: build
-        retention-days: 7
+        customParameters: -nographics -batchmode
     
     - name: Create Release
-      uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: build/StandaloneWindows64/Unity-USD-Scene-Optimizer.unitypackage
-        draft: false
-        prerelease: false
+      run: |
+        gh release create ${{ github.ref_name }} \
+          --title "Release ${{ github.ref_name }}" \
+          --notes "Release ${{ github.ref_name }}" \
+          build/StandaloneWindows64/Unity-USD-Scene-Optimizer.unitypackage
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
