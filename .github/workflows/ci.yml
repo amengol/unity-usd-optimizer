@@ -7,46 +7,97 @@ on:
     branches: [ master ]
 
 jobs:
-  test:
-    name: Run Tests
+  validate:
+    name: Validate Project
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v3
-    
-    - name: Unity - Activate
-      uses: game-ci/unity-activate@v2
-      env:
-        UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        UNITY_VERSION: 2021.3.4f1
-    
-    - name: Cache Library
-      uses: actions/cache@v3
       with:
-        path: Library
-        key: Library-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
-        restore-keys: |
-          Library-
-    
-    - name: Run Tests
-      uses: game-ci/unity-test-runner@v2
-      env:
-        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-      with:
-        projectPath: .
-        unityVersion: 2021.3.4f1
-        artifactsPath: artifacts
-        githubToken: ${{ secrets.GITHUB_TOKEN }}
-        customParameters: -nographics -batchmode
-    
-    - name: Store Test Results
+        fetch-depth: 0
+        lfs: true
+
+    # Basic structure validation
+    - name: Check Project Structure
+      run: |
+        if [ ! -d "Assets" ]; then
+          echo "Error: Assets directory not found"
+          exit 1
+        fi
+        if [ ! -d "Packages" ]; then
+          echo "Error: Packages directory not found"
+          exit 1
+        fi
+
+    # Check for meta files consistency
+    - name: Validate Meta Files
+      run: |
+        find Assets -type f ! -name "*.meta" | while read file; do
+          if [ ! -f "${file}.meta" ]; then
+            echo "Warning: Missing meta file for: $file"
+          fi
+        done
+
+    # Store validation results
+    - name: Store Results
       if: always()
       uses: actions/upload-artifact@v4.6.1
       with:
-        name: Test Results
-        path: artifacts
+        name: Validation Results
+        path: |
+          ./**/Assets/**/*.cs
+          ./**/Assets/**/*.meta
         retention-days: 14
-        compression-level: 6
         if-no-files-found: warn
-        overwrite: true 
+        overwrite: true
+
+# Commented out Unity-dependent parts
+# To enable these in the future when you have a Unity license:
+# 1. Uncomment the section below
+# 2. Add the following secrets to your repository:
+#    - UNITY_EMAIL
+#    - UNITY_PASSWORD
+#    - UNITY_LICENSE
+# 3. Remove the validation job above if you want to only keep Unity tests
+
+#  test:
+#    name: Run Unity Tests
+#    runs-on: ubuntu-latest
+#    steps:
+#    - uses: actions/checkout@v3
+#    
+#    - name: Unity - Activate
+#      uses: game-ci/unity-activate@v2
+#      env:
+#        UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+#        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+#        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+#    
+#    - name: Cache Library
+#      uses: actions/cache@v3
+#      with:
+#        path: Library
+#        key: Library-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+#        restore-keys: |
+#          Library-
+#    
+#    - name: Run Tests
+#      uses: game-ci/unity-test-runner@v2
+#      env:
+#        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+#      with:
+#        projectPath: .
+#        unityVersion: 2021.3.4f1
+#        artifactsPath: artifacts
+#        githubToken: ${{ secrets.GITHUB_TOKEN }}
+#        customParameters: -nographics -batchmode
+#    
+#    - name: Store Test Results
+#      if: always()
+#      uses: actions/upload-artifact@v4.6.1
+#      with:
+#        name: Test Results
+#        path: artifacts
+#        retention-days: 14
+#        compression-level: 6
+#        if-no-files-found: warn
+#        overwrite: true 
