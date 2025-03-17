@@ -42,12 +42,11 @@ jobs:
     
     - name: Store Test Results
       if: always()
-      run: |
-        mkdir -p ./test-results
-        cp -r artifacts/* ./test-results/ || true
-    
-    - uses: actions/upload-artifact@v1.0.0
-      if: always()
+      uses: actions/upload-artifact@v4.6.1
       with:
         name: Test Results
-        path: ./test-results 
+        path: artifacts
+        retention-days: 14
+        compression-level: 6
+        if-no-files-found: warn
+        overwrite: true 
