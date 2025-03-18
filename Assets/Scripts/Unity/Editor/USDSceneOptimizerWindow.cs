@@ -5,6 +5,8 @@ using USDOptimizer.Core.Optimization;
 using USDOptimizer.Core.Logging;
 using System;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.IO;
 
 namespace USDOptimizer.Unity.Editor
 {
@@ -29,6 +31,10 @@ namespace USDOptimizer.Unity.Editor
         private bool _isPreviewActive;
         private bool _showPreviewWindow;
         private Vector2 _previewScrollPosition;
+        private BatchProcessor _batchProcessor;
+        private List<string> _selectedScenes;
+        private bool _showBatchProcessing;
+        private Vector2 _batchScrollPosition;
 
         [MenuItem("Window/USD Scene Optimizer")]
         public static void ShowWindow()
@@ -47,6 +53,12 @@ namespace USDOptimizer.Unity.Editor
             _previewManager.OnPreviewCompleted += HandlePreviewCompleted;
             _previewManager.OnPreviewError += HandlePreviewError;
             OptimizationProfileManager.Instance.Refresh();
+            _batchProcessor = new BatchProcessor(_sceneIO, new SceneOptimizer());
+            _batchProcessor.OnProgressChanged += HandleBatchProgress;
+            _batchProcessor.OnSceneProcessed += HandleSceneProcessed;
+            _batchProcessor.OnBatchCompleted += HandleBatchCompleted;
+            _batchProcessor.OnBatchError += HandleBatchError;
+            _selectedScenes = new List<string>();
         }
 
         private void OnDisable()
@@ -57,6 +69,13 @@ namespace USDOptimizer.Unity.Editor
                 _previewManager.OnPreviewUpdated -= HandlePreviewUpdated;
                 _previewManager.OnPreviewCompleted -= HandlePreviewCompleted;
                 _previewManager.OnPreviewError -= HandlePreviewError;
+            }
+            if (_batchProcessor != null)
+            {
+                _batchProcessor.OnProgressChanged -= HandleBatchProgress;
+                _batchProcessor.OnSceneProcessed -= HandleSceneProcessed;
+                _batchProcessor.OnBatchCompleted -= HandleBatchCompleted;
+                _batchProcessor.OnBatchError -= HandleBatchError;
             }
         }
 
@@ -87,6 +106,11 @@ namespace USDOptimizer.Unity.Editor
             if (_showPreviewWindow)
             {
                 DrawPreviewWindow();
+            }
+
+            if (_showBatchProcessing)
+            {
+                DrawBatchProcessingWindow();
             }
         }
 
@@ -505,6 +529,121 @@ namespace USDOptimizer.Unity.Editor
         {
             _isPreviewActive = false;
             _statusMessage = "Error generating preview. Check console for details.";
+            Repaint();
+        }
+
+        private void DrawBatchProcessingWindow()
+        {
+            GUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Batch Processing", EditorStyles.boldLabel);
+
+            _batchScrollPosition = EditorGUILayout.BeginScrollView(_batchScrollPosition);
+
+            // Selected scenes list
+            EditorGUILayout.LabelField("Selected Scenes:", EditorStyles.boldLabel);
+            if (_selectedScenes.Count == 0)
+            {
+                EditorGUILayout.HelpBox("No scenes selected. Click 'Select Scenes' to choose USD scenes for batch processing.", MessageType.Info);
+            }
+            else
+            {
+                foreach (string scene in _selectedScenes)
+                {
+                    EditorGUILayout.LabelField(Path.GetFileName(scene));
+                }
+            }
+
+            // Profile selection
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Optimization Profile:", EditorStyles.boldLabel);
+            string[] profileNames = OptimizationProfileManager.Instance.GetProfileNames();
+            int selectedIndex = Array.IndexOf(profileNames, _selectedProfile);
+            int newIndex = EditorGUILayout.Popup(selectedIndex, profileNames);
+            if (newIndex != selectedIndex)
+            {
+                _selectedProfile = profileNames[newIndex];
+                OptimizationProfileManager.Instance.LoadProfile(_selectedProfile, _settings);
+            }
+
+            EditorGUILayout.EndScrollView();
+
+            // Buttons
+            EditorGUILayout.Space();
+            EditorGUILayout.BeginHorizontal();
+            
+            if (GUILayout.Button("Select Scenes"))
+            {
+                _selectedScenes = _batchProcessor.ShowFolderDialog();
+            }
+
+            if (_selectedScenes.Count > 0)
+            {
+                if (_batchProcessor.IsProcessing)
+                {
+                    if (GUILayout.Button("Cancel"))
+                    {
+                        _batchProcessor.CancelBatch();
+                    }
+                }
+                else
+                {
+                    if (GUILayout.Button("Process Scenes"))
+                    {
+                        var profile = OptimizationProfileManager.Instance.GetProfile(_selectedProfile);
+                        _ = ProcessScenesAsync(profile);
+                    }
+                }
+            }
+
+            EditorGUILayout.EndHorizontal();
+
+            // Progress
+            if (_batchProcessor.IsProcessing)
+            {
+                EditorGUILayout.Space();
+                EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(), _progress, $"Processing: {_currentScene}");
+            }
+
+            GUILayout.EndVertical();
+        }
+
+        private async Task ProcessScenesAsync(OptimizationProfile profile)
+        {
+            try
+            {
+                await _batchProcessor.ProcessBatchAsync(_selectedScenes, profile);
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Error", $"Error processing scenes: {ex.Message}", "OK");
+            }
+        }
+
+        private void HandleBatchProgress(float progress)
+        {
+            _progress = progress;
+            Repaint();
+        }
+
+        private void HandleSceneProcessed(string sceneName)
+        {
+            _currentScene = sceneName;
+            Repaint();
+        }
+
+        private void HandleBatchCompleted()
+        {
+            EditorUtility.DisplayDialog("Success", "Batch processing completed successfully!", "OK");
+            _progress = 0f;
+            _currentScene = null;
+            Repaint();
+        }
+
+        private void HandleBatchError(Exception ex)
+        {
+            EditorUtility.DisplayDialog("Error", $"Error during batch processing: {ex.Message}", "OK");
+            _progress = 0f;
+            _currentScene = null;
             Repaint();
         }
     }
