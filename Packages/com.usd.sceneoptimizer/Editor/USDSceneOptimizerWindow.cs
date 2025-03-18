@@ -204,7 +204,7 @@ namespace USDOptimizer.Unity.Editor
                 await Task.Run(() => {
                     try {
                         _progress = 0.3f;
-                        _analysisResults = _sceneAnalyzer.AnalyzeScene();
+                        _analysisResults = _sceneAnalyzer.AnalyzeSceneAsync(_currentUsdScene).Result;
                         _progress = 0.9f;
                     }
                     catch (Exception ex) {
@@ -343,7 +343,7 @@ namespace USDOptimizer.Unity.Editor
             // Create dummy mesh data based on analysis
             for (int i = 0; i < 10; i++) // Create some sample meshes
             {
-                scene.Meshes.Add(new Mesh
+                scene.Meshes.Add(new USDOptimizer.Core.Models.Mesh
                 {
                     Name = $"Mesh_{i}",
                     PolygonCount = _analysisResults.TotalPolygons / 10,
@@ -354,7 +354,7 @@ namespace USDOptimizer.Unity.Editor
             // Create dummy material data
             for (int i = 0; i < _analysisResults.TotalMaterials; i++)
             {
-                scene.Materials.Add(new Material
+                scene.Materials.Add(new USDOptimizer.Core.Models.Material
                 {
                     Name = $"Material_{i}"
                 });
@@ -363,7 +363,7 @@ namespace USDOptimizer.Unity.Editor
             // Create dummy texture data
             for (int i = 0; i < _analysisResults.TotalTextures; i++)
             {
-                scene.Textures.Add(new Texture
+                scene.Textures.Add(new USDOptimizer.Core.Models.Texture
                 {
                     Name = $"Texture_{i}",
                     Width = 1024,
@@ -686,6 +686,153 @@ namespace USDOptimizer.Unity.Editor
                 _isProcessing = false;
                 _currentScene = null;
                 _progress = 0f;
+            }
+        }
+
+        private void AnalyzeScene()
+        {
+            _statusMessage = "Analyzing scene...";
+            _progress = 0.5f;
+            Repaint();
+            
+            try
+            {
+                // For a real implementation, use AnalyzeSceneAsync, but for this example:
+                _analysisResults = _sceneAnalyzer.AnalyzeSceneAsync(_currentUsdScene).Result;
+                _statusMessage = $"Analysis complete. Found {_analysisResults.TotalNodes} nodes, {_analysisResults.TotalPolygons} polygons, {_analysisResults.TotalMaterials} materials.";
+                
+                if (_analysisResults.Recommendations.Count > 0)
+                {
+                    _statusMessage += $"\n{_analysisResults.Recommendations.Count} optimization recommendations found.";
+                }
+            }
+            catch (Exception ex)
+            {
+                _statusMessage = $"Error analyzing scene: {ex.Message}";
+                Debug.LogError($"Analysis error: {ex}");
+            }
+            
+            _progress = 1.0f;
+            Repaint();
+        }
+
+        private void CreateSampleScene()
+        {
+            _currentUsdScene = new USDScene
+            {
+                Name = "Sample Scene",
+                FilePath = "sample.usda",
+                ImportDate = DateTime.Now,
+                Nodes = new List<USDNode>(),
+                Meshes = new List<USDOptimizer.Core.Models.Mesh>(),
+                Materials = new List<USDOptimizer.Core.Models.Material>(),
+                Textures = new List<USDOptimizer.Core.Models.Texture>(),
+                OptimizationResults = new List<USDOptimizer.Core.Models.OptimizationResult>()
+            };
+
+            // ... existing code continuing from here ...
+        }
+
+        private void DisplayMemoryUsagePieChart(Rect rect)
+        {
+            if (_analysisResults == null) return;
+            
+            GUILayout.BeginArea(rect);
+            GUILayout.Label("Memory Usage Breakdown", EditorStyles.boldLabel);
+            
+            float meshMemory = _analysisResults.MeshMetrics?.MemoryUsage ?? 0;
+            float textureMemory = _analysisResults.MaterialMetrics?.TextureMemoryUsage ?? 0;
+            
+            // Convert to MB for display
+            float meshMemoryMB = meshMemory / (1024 * 1024);
+            float textureMemoryMB = textureMemory / (1024 * 1024);
+            float totalMemoryMB = (meshMemory + textureMemory) / (1024 * 1024);
+            
+            // Display values
+            EditorGUILayout.LabelField($"Total Memory: {totalMemoryMB:F2} MB");
+            EditorGUILayout.LabelField($"Mesh Data: {meshMemoryMB:F2} MB ({meshMemoryMB / totalMemoryMB * 100:F1}%)");
+            EditorGUILayout.LabelField($"Texture Data: {textureMemoryMB:F2} MB ({textureMemoryMB / totalMemoryMB * 100:F1}%)");
+            
+            GUILayout.EndArea();
+        }
+
+        private void ShowOptimizationOptions()
+        {
+            if (_analysisResults == null)
+            {
+                EditorGUILayout.HelpBox("Run analysis first to see optimization options.", MessageType.Info);
+                return;
+            }
+            
+            EditorGUILayout.LabelField("Optimization Statistics", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField($"Polygon Count: {_analysisResults.TotalPolygons:N0}");
+            EditorGUILayout.LabelField($"Texture Count: {_analysisResults.TotalTextures:N0}");
+            EditorGUILayout.LabelField($"Material Count: {_analysisResults.TotalMaterials:N0}");
+            EditorGUILayout.LabelField($"Estimated Memory Usage: {FormatMemorySize(_analysisResults.TotalMemoryUsage)}");
+            
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Optimization Recommendations", EditorStyles.boldLabel);
+            
+            if (_analysisResults.Recommendations.Count == 0)
+            {
+                EditorGUILayout.HelpBox("No optimization recommendations found.", MessageType.Info);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox($"Found {_analysisResults.Recommendations.Count} optimization recommendations.", MessageType.Info);
+                
+                foreach (var recommendation in _analysisResults.Recommendations)
+                {
+                    EditorGUILayout.BeginHorizontal(GUI.skin.box);
+                    
+                    // Display priority icon
+                    Texture2D priorityIcon = GetPriorityIcon(recommendation.Priority);
+                    if (priorityIcon != null)
+                    {
+                        GUILayout.Label(new GUIContent(priorityIcon), GUILayout.Width(20), GUILayout.Height(20));
+                    }
+                    
+                    EditorGUILayout.BeginVertical();
+                    EditorGUILayout.LabelField(recommendation.Title, EditorStyles.boldLabel);
+                    EditorGUILayout.LabelField(recommendation.Description, EditorStyles.wordWrappedLabel);
+                    EditorGUILayout.EndVertical();
+                    
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUILayout.Space();
+                }
+            }
+        }
+
+        private Texture2D GetPriorityIcon(OptimizationPriorityLevel priority)
+        {
+            switch (priority)
+            {
+                case OptimizationPriorityLevel.Critical:
+                    return EditorGUIUtility.FindTexture("console.erroricon");
+                case OptimizationPriorityLevel.High:
+                    return EditorGUIUtility.FindTexture("console.warnicon");
+                case OptimizationPriorityLevel.Medium:
+                    return EditorGUIUtility.FindTexture("console.infoicon");
+                case OptimizationPriorityLevel.Low:
+                    return EditorGUIUtility.FindTexture("console.infoicon.sml");
+                default:
+                    return null;
+            }
+        }
+
+        private OptimizationPriority ConvertPriorityLevel(OptimizationPriorityLevel level)
+        {
+            switch (level)
+            {
+                case OptimizationPriorityLevel.Critical:
+                    return OptimizationPriority.Critical;
+                case OptimizationPriorityLevel.High:
+                    return OptimizationPriority.High;
+                case OptimizationPriorityLevel.Medium:
+                    return OptimizationPriority.Medium;
+                case OptimizationPriorityLevel.Low:
+                default:
+                    return OptimizationPriority.Low;
             }
         }
     }

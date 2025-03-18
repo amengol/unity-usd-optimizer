@@ -1,17 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Linq;
 using USDOptimizer.Core.Models;
 using USDOptimizer.Core.Logging;
+using UnityEngine;
 
 namespace USDOptimizer.Core.Optimization
 {
     public class SceneOptimizer
     {
-        private readonly ILogger _logger;
+        private readonly USDOptimizer.Core.Logging.ILogger _logger;
         private readonly MeshOptimizer _meshOptimizer;
 
-        public SceneOptimizer(ILogger logger = null)
+        public SceneOptimizer(USDOptimizer.Core.Logging.ILogger logger = null)
         {
             _logger = logger ?? new UnityLogger();
             _meshOptimizer = new MeshOptimizer(_logger);
@@ -41,10 +43,10 @@ namespace USDOptimizer.Core.Optimization
                     FilePath = scene.FilePath,
                     Name = $"{scene.Name}_Optimized",
                     ImportDate = DateTime.Now,
-                    Meshes = new List<Mesh>(scene.Meshes),
-                    Materials = new List<Material>(scene.Materials),
-                    Textures = new List<Texture>(scene.Textures),
-                    RootNode = CloneNode(scene.RootNode)
+                    Nodes = scene.Nodes.Select(n => CloneNode(n)).ToList(),
+                    Meshes = scene.Meshes.Select(m => CloneMesh(m)).ToList(),
+                    Materials = scene.Materials.Select(m => CloneMaterial(m)).ToList(),
+                    Textures = scene.Textures.Select(t => CloneTexture(t)).ToList()
                 };
 
                 // Apply optimization settings
@@ -63,19 +65,16 @@ namespace USDOptimizer.Core.Optimization
             }
         }
 
-        private Node CloneNode(Node original)
+        private USDNode CloneNode(USDNode original)
         {
             if (original == null) return null;
             
-            var clone = new Node
+            var clone = new USDNode
             {
                 Name = original.Name,
-                Transform = original.Transform,
-                Mesh = original.Mesh,
-                Material = original.Material,
-                IsInstance = original.IsInstance,
-                PrototypeName = original.PrototypeName,
-                Children = new List<Node>()
+                Type = original.Type,
+                Properties = new Dictionary<string, object>(original.Properties),
+                Children = new List<USDNode>()
             };
             
             if (original.Children != null)
@@ -88,17 +87,53 @@ namespace USDOptimizer.Core.Optimization
             
             return clone;
         }
+        
+        private USDOptimizer.Core.Models.Mesh CloneMesh(USDOptimizer.Core.Models.Mesh original)
+        {
+            if (original == null) return null;
+            
+            return new USDOptimizer.Core.Models.Mesh
+            {
+                Name = original.Name,
+                PolygonCount = original.PolygonCount,
+                VertexCount = original.VertexCount,
+                Material = original.Material != null ? CloneMaterial(original.Material) : null
+            };
+        }
+        
+        private USDOptimizer.Core.Models.Material CloneMaterial(USDOptimizer.Core.Models.Material original)
+        {
+            if (original == null) return null;
+            
+            return new USDOptimizer.Core.Models.Material
+            {
+                Name = original.Name
+            };
+        }
+        
+        private USDOptimizer.Core.Models.Texture CloneTexture(USDOptimizer.Core.Models.Texture original)
+        {
+            if (original == null) return null;
+            
+            return new USDOptimizer.Core.Models.Texture
+            {
+                Name = original.Name,
+                Width = original.Width,
+                Height = original.Height,
+                Size = original.Size
+            };
+        }
 
         private async Task ApplyOptimizationSettingsAsync(USDScene scene, SceneOptimizationSettings settings)
         {
             // List to track optimization results
-            var optimizationResults = new List<OptimizationResult>();
+            var optimizationResults = new List<USDOptimizer.Core.Models.OptimizationResult>();
             
             // Apply mesh optimization (using MeshOptimizer)
             if (settings.EnableMeshSimplification || settings.EnableLODGeneration)
             {
                 int optimizedMeshCount = await _meshOptimizer.OptimizeMeshesAsync(scene, settings);
-                optimizationResults.Add(new OptimizationResult
+                optimizationResults.Add(new USDOptimizer.Core.Models.OptimizationResult
                 {
                     Type = "Mesh Optimization",
                     ItemsOptimized = optimizedMeshCount,
@@ -112,7 +147,7 @@ namespace USDOptimizer.Core.Optimization
             if (settings.EnableMaterialBatching)
             {
                 int batchedMaterials = await OptimizeMaterialsAsync(scene);
-                optimizationResults.Add(new OptimizationResult
+                optimizationResults.Add(new USDOptimizer.Core.Models.OptimizationResult
                 {
                     Type = "Material Optimization",
                     ItemsOptimized = batchedMaterials,
@@ -124,7 +159,7 @@ namespace USDOptimizer.Core.Optimization
             if (settings.EnableTextureCompression)
             {
                 int compressedTextures = await OptimizeTexturesAsync(scene);
-                optimizationResults.Add(new OptimizationResult
+                optimizationResults.Add(new USDOptimizer.Core.Models.OptimizationResult
                 {
                     Type = "Texture Optimization",
                     ItemsOptimized = compressedTextures,
@@ -136,7 +171,7 @@ namespace USDOptimizer.Core.Optimization
             if (settings.EnableHierarchyFlattening)
             {
                 int flattenedNodes = await OptimizeHierarchyAsync(scene, settings.MaxHierarchyDepth);
-                optimizationResults.Add(new OptimizationResult
+                optimizationResults.Add(new USDOptimizer.Core.Models.OptimizationResult
                 {
                     Type = "Hierarchy Optimization",
                     ItemsOptimized = flattenedNodes,
@@ -148,7 +183,7 @@ namespace USDOptimizer.Core.Optimization
             if (settings.EnableTransformOptimization)
             {
                 int optimizedTransforms = await OptimizeTransformsAsync(scene);
-                optimizationResults.Add(new OptimizationResult
+                optimizationResults.Add(new USDOptimizer.Core.Models.OptimizationResult
                 {
                     Type = "Transform Optimization",
                     ItemsOptimized = optimizedTransforms,
@@ -168,7 +203,7 @@ namespace USDOptimizer.Core.Optimization
             
             await Task.Run(() => {
                 // Simple material batching algorithm - combine materials with the same name
-                var materialGroups = new Dictionary<string, List<Material>>();
+                var materialGroups = new Dictionary<string, List<USDOptimizer.Core.Models.Material>>();
                 
                 // Group materials by name
                 foreach (var material in scene.Materials)
@@ -176,9 +211,10 @@ namespace USDOptimizer.Core.Optimization
                     string key = material.Name;
                     if (!materialGroups.ContainsKey(key))
                     {
-                        materialGroups[key] = new List<Material>();
+                        materialGroups[key] = new List<USDOptimizer.Core.Models.Material>();
                     }
-                    materialGroups[key].Add(material);
+                    // Cast to ensure we're using the same type
+                    materialGroups[key].Add((USDOptimizer.Core.Models.Material)material);
                 }
                 
                 // Batch materials in each group
@@ -247,7 +283,7 @@ namespace USDOptimizer.Core.Optimization
             return flattenedCount;
         }
 
-        private int FlattenNodeHierarchy(Node node, int currentDepth, int maxDepth)
+        private int FlattenNodeHierarchy(USDNode node, int currentDepth, int maxDepth)
         {
             int flattenedCount = 0;
             
@@ -264,7 +300,7 @@ namespace USDOptimizer.Core.Optimization
             }
             
             // Otherwise, recurse into children
-            List<Node> childrenCopy = new List<Node>(node.Children);
+            List<USDNode> childrenCopy = new List<USDNode>(node.Children);
             foreach (var child in childrenCopy)
             {
                 flattenedCount += FlattenNodeHierarchy(child, currentDepth + 1, maxDepth);
@@ -273,7 +309,7 @@ namespace USDOptimizer.Core.Optimization
             return flattenedCount;
         }
 
-        private int FlattenNode(Node node)
+        private int FlattenNode(USDNode node)
         {
             if (node == null || node.Children == null || node.Children.Count == 0)
             {
@@ -281,7 +317,7 @@ namespace USDOptimizer.Core.Optimization
             }
             
             int flattenedCount = 0;
-            List<Node> allDescendants = new List<Node>();
+            List<USDNode> allDescendants = new List<USDNode>();
             
             // Collect all descendants
             CollectDescendants(node, allDescendants);
@@ -307,7 +343,7 @@ namespace USDOptimizer.Core.Optimization
             return flattenedCount;
         }
 
-        private void CollectDescendants(Node node, List<Node> descendants)
+        private void CollectDescendants(USDNode node, List<USDNode> descendants)
         {
             if (node == null || node.Children == null)
             {
@@ -335,7 +371,7 @@ namespace USDOptimizer.Core.Optimization
             return optimizedCount;
         }
 
-        private int OptimizeNodeTransforms(Node node)
+        private int OptimizeNodeTransforms(USDNode node)
         {
             int optimizedCount = 0;
             
@@ -362,7 +398,7 @@ namespace USDOptimizer.Core.Optimization
             return optimizedCount;
         }
 
-        private bool OptimizeTransform(Node node)
+        private bool OptimizeTransform(USDNode node)
         {
             // This is a placeholder implementation
             // In a real implementation, this would actually modify the transform matrix
@@ -398,7 +434,7 @@ namespace USDOptimizer.Core.Optimization
             };
         }
 
-        private int CountNodes(Node node)
+        private int CountNodes(USDNode node)
         {
             if (node == null)
             {
@@ -418,7 +454,7 @@ namespace USDOptimizer.Core.Optimization
             return count;
         }
 
-        private void CountNodeTypes(Node node, Dictionary<string, int> typeCounts)
+        private void CountNodeTypes(USDNode node, Dictionary<string, int> typeCounts)
         {
             if (node == null)
             {
@@ -480,12 +516,5 @@ namespace USDOptimizer.Core.Optimization
             
             return size;
         }
-    }
-
-    public class OptimizationResult
-    {
-        public string Type { get; set; }
-        public int ItemsOptimized { get; set; }
-        public string Notes { get; set; }
     }
 } 

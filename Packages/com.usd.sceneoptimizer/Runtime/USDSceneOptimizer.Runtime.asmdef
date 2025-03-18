@@ -1,13 +1,10 @@
 {
-    "name": "USDOptimizer.Editor",
-    "rootNamespace": "USDOptimizer.Unity.Editor",
+    "name": "USDSceneOptimizer.Runtime",
+    "rootNamespace": "USDSceneOptimizer",
     "references": [
-        "USDOptimizer.Core",
-        "USDSceneOptimizer.Runtime"
+        "USDOptimizer.Core"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,

@@ -11,9 +11,9 @@ namespace USDOptimizer.Core.Optimization
     /// </summary>
     public class MeshOptimizer
     {
-        private readonly ILogger _logger;
+        private readonly USDOptimizer.Core.Logging.ILogger _logger;
 
-        public MeshOptimizer(ILogger logger = null)
+        public MeshOptimizer(USDOptimizer.Core.Logging.ILogger logger = null)
         {
             _logger = logger ?? new UnityLogger();
         }
@@ -125,7 +125,7 @@ namespace USDOptimizer.Core.Optimization
                     {
                         float reductionFactor = 1.0f - (i * 0.25f); // Each level reduces by 25%
                         
-                        var lodMesh = new Mesh
+                        var lodMesh = new USDOptimizer.Core.Models.Mesh
                         {
                             Name = $"{mesh.Name}_LOD{i}",
                             PolygonCount = (int)(mesh.PolygonCount * reductionFactor),

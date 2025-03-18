@@ -16,7 +16,7 @@ namespace USDOptimizer.Core.Batch
     {
         private readonly USDSceneIO _sceneIO;
         private readonly SceneOptimizer _sceneOptimizer;
-        private readonly ILogger _logger;
+        private readonly USDOptimizer.Core.Logging.ILogger _logger;
         private bool _isProcessing;
         private bool _isCancelled;
 
@@ -27,7 +27,7 @@ namespace USDOptimizer.Core.Batch
 
         public bool IsProcessing => _isProcessing;
 
-        public BatchProcessor(USDSceneIO sceneIO, SceneOptimizer sceneOptimizer, ILogger logger = null)
+        public BatchProcessor(USDSceneIO sceneIO, SceneOptimizer sceneOptimizer, USDOptimizer.Core.Logging.ILogger logger = null)
         {
             _sceneIO = sceneIO ?? throw new ArgumentNullException(nameof(sceneIO));
             _sceneOptimizer = sceneOptimizer ?? throw new ArgumentNullException(nameof(sceneOptimizer));

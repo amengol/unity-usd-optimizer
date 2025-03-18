@@ -1,3 +1,5 @@
+using System;
+
 namespace USDOptimizer.Core.Logging
 {
     public interface ILogger
@@ -5,6 +7,6 @@ namespace USDOptimizer.Core.Logging
         void LogInfo(string message);
         void LogWarning(string message);
         void LogError(string message);
-        void LogDebug(string message);
+        void LogException(Exception ex);
     }
 } 
