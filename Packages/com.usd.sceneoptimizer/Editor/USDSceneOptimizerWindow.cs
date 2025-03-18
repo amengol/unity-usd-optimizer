@@ -323,9 +323,9 @@ namespace USDOptimizer.Unity.Editor
             {
                 Name = "AnalyzedScene",
                 ImportDate = DateTime.Now,
-                Meshes = new List<Mesh>(),
-                Materials = new List<Material>(),
-                Textures = new List<Texture>()
+                Meshes = new List<USDOptimizer.Core.Models.Mesh>(),
+                Materials = new List<USDOptimizer.Core.Models.Material>(),
+                Textures = new List<USDOptimizer.Core.Models.Texture>()
             };
 
             // Create statistics
@@ -410,13 +410,13 @@ namespace USDOptimizer.Unity.Editor
                         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
                         
                         EditorGUILayout.BeginHorizontal();
-                        MessageType messageType = GetMessageTypeForPriority(recommendation.Priority);
+                        MessageType messageType = GetMessageTypeForPriority(ConvertPriorityLevel(recommendation.Priority));
                         EditorGUILayout.HelpBox(recommendation.Title, messageType);
                         EditorGUILayout.EndHorizontal();
                         
                         EditorGUILayout.LabelField(recommendation.Description);
                         EditorGUILayout.LabelField($"Priority: {recommendation.Priority}");
-                        EditorGUILayout.LabelField($"Estimated Improvement: {recommendation.EstimatedImprovement:P0}");
+                        EditorGUILayout.LabelField($"Estimated Improvement: {recommendation.ImpactScore}%");
                         
                         EditorGUILayout.EndVertical();
                         EditorGUILayout.Space();
