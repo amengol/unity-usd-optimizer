@@ -1,6 +1,6 @@
 # Unity meta files
 *.meta
-!*.*.meta
+
 
 # Unity generated files
 [Ll]ibrary/
