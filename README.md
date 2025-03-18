@@ -11,7 +11,7 @@ A Unity editor tool for analyzing and optimizing USD scenes, helping developers 
 - USD-specific optimizations
 
 ## User Interface
-![USD Scene Optimizer UI](Images/ui.jpg)
+![USD Scene Optimizer UI](Images/ui.JPG)
 
 ## Requirements
 
