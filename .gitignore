@@ -1,6 +1,8 @@
+# Cursor rules
+.cursor/rules
+
 # Unity meta files
 *.meta
-
 
 # Unity generated files
 [Ll]ibrary/
