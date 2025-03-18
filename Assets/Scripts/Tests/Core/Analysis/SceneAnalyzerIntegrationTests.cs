@@ -18,7 +18,7 @@ namespace USDOptimizer.Tests.Core.Analysis
         private IMeshAnalyzer _mockMeshAnalyzer;
         private IMaterialAnalyzer _mockMaterialAnalyzer;
         private ISceneHierarchyAnalyzer _mockHierarchyAnalyzer;
-        private GameObject _testObject;
+        private USDScene _testScene;
         
         [SetUp]
         public void Setup()
@@ -31,161 +31,182 @@ namespace USDOptimizer.Tests.Core.Analysis
             // Setup test data
             SetupMockAnalyzers();
             
+            // Create test scene
+            _testScene = CreateTestScene();
+            
             // Create SceneAnalyzer with mock components
-            _sceneAnalyzer = new SceneAnalyzer(_mockMeshAnalyzer, _mockMaterialAnalyzer, _mockHierarchyAnalyzer);
-            
-            // Create test GameObject
-            _testObject = new GameObject("TestObject");
-            var childObject = new GameObject("ChildObject");
-            childObject.transform.parent = _testObject.transform;
-            
-            // Add components to test object
-            var meshFilter = _testObject.AddComponent<MeshFilter>();
-            meshFilter.mesh = new UnityEngine.Mesh();
-            meshFilter.mesh.vertices = new Vector3[100];
-            meshFilter.mesh.triangles = new int[300]; // 100 triangles
-            
-            var renderer = _testObject.AddComponent<MeshRenderer>();
-            renderer.material = new UnityEngine.Material(Shader.Find("Standard"));
+            _sceneAnalyzer = new SceneAnalyzer(
+                _mockMeshAnalyzer, 
+                _mockMaterialAnalyzer, 
+                _mockHierarchyAnalyzer);
         }
         
         [TearDown]
         public void TearDown()
         {
-            UnityEngine.Object.DestroyImmediate(_testObject);
+            // Clean up resources if needed
         }
         
         [Test]
-        public void AnalyzeScene_ReturnsValidResults()
+        public async Task AnalyzeSceneAsync_CombinesResultsFromSpecializedAnalyzers()
         {
             // Act
-            var results = _sceneAnalyzer.AnalyzeScene();
+            var results = await _sceneAnalyzer.AnalyzeSceneAsync(_testScene);
             
             // Assert
-            Assert.That(results, Is.Not.Null);
-            Assert.That(results.TotalPolygons, Is.EqualTo(1000));
-            Assert.That(results.TotalVertices, Is.EqualTo(2000));
-            Assert.That(results.TotalMaterials, Is.EqualTo(10));
-            Assert.That(results.TotalTextures, Is.EqualTo(5));
-            Assert.That(results.Recommendations, Is.Not.Null);
-            Assert.That(results.Recommendations.Count, Is.GreaterThan(0));
+            Assert.NotNull(results);
+            
+            // Verify it uses data from mesh analyzer
+            Assert.AreEqual(100, results.TotalPolygons);
+            Assert.AreEqual(200, results.TotalVertices);
+            
+            // Verify it uses data from material analyzer
+            Assert.AreEqual(5, results.TotalMaterials);
+            Assert.AreEqual(10, results.TotalTextures);
+            
+            // Verify it uses data from hierarchy analyzer
+            Assert.AreEqual(15, results.TotalNodes);
+            Assert.AreEqual(3, results.HierarchyDepth);
+            
+            // Verify combined metrics
+            Assert.Greater(results.TotalMemoryUsage, 0);
+            Assert.GreaterOrEqual(results.OptimizationPotential, 0);
+            Assert.LessOrEqual(results.OptimizationPotential, 100);
         }
         
         [Test]
-        public void AnalyzeGameObject_ReturnsValidResults()
+        public async Task AnalyzeSceneAsync_GeneratesRecommendationsBasedOnMetrics()
         {
             // Act
-            var results = _sceneAnalyzer.AnalyzeGameObject(_testObject);
+            var results = await _sceneAnalyzer.AnalyzeSceneAsync(_testScene);
             
             // Assert
-            Assert.That(results, Is.Not.Null);
-            Assert.That(results.GameObjectName, Is.EqualTo("TestObject"));
-            Assert.That(results.PolygonCount, Is.EqualTo(1000));
-            Assert.That(results.VertexCount, Is.EqualTo(2000));
-            Assert.That(results.MaterialCount, Is.EqualTo(10));
-            Assert.That(results.Recommendations, Is.Not.Null);
+            Assert.NotNull(results.Recommendations);
+            Assert.Greater(results.Recommendations.Count, 0);
+            
+            // Verify recommendation structure
+            var firstRecommendation = results.Recommendations[0];
+            Assert.NotNull(firstRecommendation.Title);
+            Assert.NotNull(firstRecommendation.Description);
+            Assert.NotNull(firstRecommendation.Category);
         }
         
         [Test]
-        public void AnalyzeGameObject_NullGameObject_ThrowsArgumentNullException()
+        public void AnalyzeSceneAsync_NullScene_ThrowsArgumentNullException()
         {
-            // Act & Assert
-            Assert.Throws<ArgumentNullException>(() => _sceneAnalyzer.AnalyzeGameObject(null));
+            // Assert
+            Assert.ThrowsAsync<ArgumentNullException>(async () => 
+                await _sceneAnalyzer.AnalyzeSceneAsync(null));
         }
         
         [Test]
-        public void AnalyzeScene_GeneratesAppropriateRecommendations()
+        public async Task AnalyzeSceneAsync_CalculatesOptimizationPotentialCorrectly()
+        {
+            // Arrange - configure for high polygon count
+            var meshMetrics = new MeshMetrics { TotalPolygons = 1500000, TotalVertices = 3000000 };
+            _mockMeshAnalyzer.AnalyzeMeshesAsync(Arg.Any<USDScene>()).Returns(Task.FromResult(meshMetrics));
+            
+            // Act
+            var results = await _sceneAnalyzer.AnalyzeSceneAsync(_testScene);
+            
+            // Assert
+            Assert.Greater(results.OptimizationPotential, 50); // Should be high due to polygon count
+            Assert.Greater(results.Recommendations.Count, 1); // Should recommend mesh simplification
+            
+            // Find mesh simplification recommendation
+            var meshRecommendation = results.Recommendations.Find(r => r.Category == "Mesh");
+            Assert.NotNull(meshRecommendation);
+            Assert.AreEqual(OptimizationPriorityLevel.Critical, meshRecommendation.Priority);
+        }
+        
+        [Test]
+        public async Task AnalyzeSceneAsync_UsesAllAnalyzerComponentsCorrectly()
         {
             // Act
-            var results = _sceneAnalyzer.AnalyzeScene();
+            await _sceneAnalyzer.AnalyzeSceneAsync(_testScene);
             
-            // Assert
-            var highPolyRecommendation = results.Recommendations.Find(r => r.Title.Contains("High Polygon Count"));
-            Assert.That(highPolyRecommendation, Is.Not.Null, "Should include high polygon count recommendation");
-            Assert.That(highPolyRecommendation.Priority, Is.EqualTo(OptimizationPriority.High));
-            
-            var textureRecommendation = results.Recommendations.Find(r => r.Title.Contains("High Texture Usage"));
-            Assert.That(textureRecommendation, Is.Not.Null, "Should include texture usage recommendation");
+            // Assert - verify all analyzers were called exactly once
+            await _mockMeshAnalyzer.Received(1).AnalyzeMeshesAsync(_testScene);
+            await _mockMaterialAnalyzer.Received(1).AnalyzeMaterialsAsync(_testScene);
+            await _mockHierarchyAnalyzer.Received(1).AnalyzeHierarchyAsync(_testScene);
         }
-        
-        [Test]
-        public void AnalyzeScene_IntegratesAllAnalyzers()
-        {
-            // Act
-            _sceneAnalyzer.AnalyzeScene();
-            
-            // Assert
-            _mockMeshAnalyzer.Received(1).AnalyzeMeshesAsync(Arg.Any<Scene>());
-            _mockMaterialAnalyzer.Received(1).AnalyzeMaterialsAsync(Arg.Any<Scene>());
-            _mockHierarchyAnalyzer.Received(1).AnalyzeHierarchyAsync(Arg.Any<Scene>());
-        }
-        
-        [Test]
-        public void AnalyzeGameObject_IntegratesRelevantAnalyzers()
-        {
-            // Act
-            _sceneAnalyzer.AnalyzeGameObject(_testObject);
-            
-            // Assert
-            _mockMeshAnalyzer.Received(1).AnalyzeMeshesAsync(Arg.Any<Scene>());
-            _mockMaterialAnalyzer.Received(1).AnalyzeMaterialsAsync(Arg.Any<Scene>());
-        }
-        
-        #region Helper Methods
         
         private void SetupMockAnalyzers()
         {
             // Setup mesh analyzer mock
-            var meshMetrics = new MeshAnalysisMetrics
+            var meshMetrics = new MeshMetrics
             {
-                TotalPolygonCount = 1000,
-                TotalVertexCount = 2000,
-                HighPolyMeshes = new List<string> { "HighPolyMesh1", "HighPolyMesh2" },
-                InefficientUVMappings = new List<string> { "InefficientMesh1" }
+                TotalMeshes = 50,
+                TotalPolygons = 100,
+                TotalVertices = 200,
+                MemoryUsage = 6400, // 200 vertices * 32 bytes
+                AveragePolygonsPerMesh = 2,
+                MaxPolygonsInMesh = 10,
+                HighPolyMeshCount = 0
             };
-            _mockMeshAnalyzer.AnalyzeMeshesAsync(Arg.Any<Scene>()).Returns(Task.FromResult(meshMetrics));
+            _mockMeshAnalyzer.AnalyzeMeshesAsync(Arg.Any<USDScene>()).Returns(Task.FromResult(meshMetrics));
             
             // Setup material analyzer mock
-            var materialMetrics = new MaterialAnalysisMetrics
+            var materialMetrics = new MaterialMetrics
             {
-                TotalMaterialCount = 10,
-                TotalTextureMemoryBytes = 10485760, // 10MB
-                MaterialTextureUsage = new Dictionary<string, TextureUsageMetrics>
-                {
-                    { "Material1", new TextureUsageMetrics { TextureCount = 3 } },
-                    { "Material2", new TextureUsageMetrics { TextureCount = 2 } }
-                },
-                HighTextureUsageMaterials = new List<string> { "Material1" },
-                ComplexShaderMaterials = new List<string> { "Material2" }
+                TotalMaterials = 5,
+                TotalTextures = 10,
+                TextureMemoryUsage = 10240, // 10 textures at some size
+                UniqueMaterials = 3,
+                HighTextureCountMaterials = 1,
+                HighResTextureCount = 2,
+                MaxTextureResolution = 1024 * 1024
             };
-            _mockMaterialAnalyzer.AnalyzeMaterialsAsync(Arg.Any<Scene>()).Returns(Task.FromResult(materialMetrics));
+            _mockMaterialAnalyzer.AnalyzeMaterialsAsync(Arg.Any<USDScene>()).Returns(Task.FromResult(materialMetrics));
             
             // Setup hierarchy analyzer mock
-            var hierarchyMetrics = new SceneHierarchyMetrics
+            var hierarchyMetrics = new HierarchyMetrics
             {
-                TotalNodeCount = 50,
-                LeafNodeCount = 30,
-                IntermediateNodeCount = 20,
-                NodeDepths = new Dictionary<string, int>
+                TotalNodes = 15,
+                MaxHierarchyDepth = 3,
+                AverageChildrenPerNode = 2.5f,
+                MaxChildrenPerNode = 5,
+                EmptyNodeCount = 2,
+                DeeplyNestedNodeCount = 0,
+                NodeTypeCounts = new Dictionary<string, int>
                 {
-                    { "Root", 0 },
-                    { "Level1", 1 },
-                    { "Level2", 2 },
-                    { "DeepNode", 15 }
-                },
-                NodeChildCounts = new Dictionary<string, int>
-                {
-                    { "Root", 3 },
-                    { "Level1", 5 }
-                },
-                PotentialInstanceOpportunities = new List<InstanceOpportunity>
-                {
-                    new InstanceOpportunity { NodeName = "RepeatableObject", Count = 5 }
+                    { "Mesh", 5 },
+                    { "Material", 3 },
+                    { "Transform", 7 }
                 }
             };
-            _mockHierarchyAnalyzer.AnalyzeHierarchyAsync(Arg.Any<Scene>()).Returns(Task.FromResult(hierarchyMetrics));
+            _mockHierarchyAnalyzer.AnalyzeHierarchyAsync(Arg.Any<USDScene>()).Returns(Task.FromResult(hierarchyMetrics));
         }
         
-        #endregion
+        private USDScene CreateTestScene()
+        {
+            return new USDScene
+            {
+                Name = "TestScene",
+                FilePath = "test.usda",
+                ImportDate = DateTime.Now,
+                Nodes = new List<USDNode>
+                {
+                    new USDNode { Name = "Root" }
+                },
+                Meshes = new List<USDOptimizer.Core.Models.Mesh>
+                {
+                    new USDOptimizer.Core.Models.Mesh { Name = "TestMesh" }
+                },
+                Materials = new List<USDOptimizer.Core.Models.Material>
+                {
+                    new USDOptimizer.Core.Models.Material { Name = "TestMaterial" }
+                },
+                Textures = new List<USDOptimizer.Core.Models.Texture>
+                {
+                    new USDOptimizer.Core.Models.Texture
+                    {
+                        Name = "TestTexture",
+                        Width = 512,
+                        Height = 512
+                    }
+                }
+            };
+        }
     }
 } 

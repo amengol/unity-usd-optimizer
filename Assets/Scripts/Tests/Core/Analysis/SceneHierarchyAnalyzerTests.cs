@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using USDOptimizer.Core.Analysis.Implementations;
+using USDOptimizer.Core.Analysis.Interfaces;
 using USDOptimizer.Core.Models;
 
 namespace USDOptimizer.Tests.Core.Analysis
@@ -10,154 +11,188 @@ namespace USDOptimizer.Tests.Core.Analysis
     public class SceneHierarchyAnalyzerTests
     {
         private SceneHierarchyAnalyzer _analyzer;
-        private Scene _testScene;
-        private Node _rootNode;
-
+        private USDScene _testScene;
+        
         [SetUp]
         public void Setup()
         {
             _analyzer = new SceneHierarchyAnalyzer();
-            _rootNode = CreateTestHierarchy();
-            _testScene = new Scene { Name = "TestScene", RootNode = _rootNode };
+            _testScene = new USDScene { Name = "TestScene" };
+            
+            // Create a basic hierarchy for testing
+            _testScene.Nodes = CreateTestHierarchy();
         }
-
+        
         [Test]
-        public async Task AnalyzeHierarchyAsync_ValidHierarchy_ReturnsCorrectMetrics()
+        public async Task AnalyzeHierarchyAsync_ValidScene_ReturnsCorrectMetrics()
         {
             // Act
             var metrics = await _analyzer.AnalyzeHierarchyAsync(_testScene);
-
+            
             // Assert
-            Assert.That(metrics.TotalNodeCount, Is.EqualTo(5));
-            Assert.That(metrics.LeafNodeCount, Is.EqualTo(3));
-            Assert.That(metrics.IntermediateNodeCount, Is.EqualTo(2));
-            Assert.That(metrics.NodeChildCounts["Root"], Is.EqualTo(2));
-            Assert.That(metrics.NodeChildCounts["Child1"], Is.EqualTo(2));
+            Assert.NotNull(metrics);
+            Assert.AreEqual(7, metrics.TotalNodes);
+            Assert.AreEqual(3, metrics.MaxHierarchyDepth); // Root -> Child -> GrandChild
+            Assert.Greater(metrics.AverageChildrenPerNode, 0);
+            Assert.AreEqual(2, metrics.MaxChildrenPerNode);
         }
-
+        
         [Test]
-        public async Task AnalyzeTransformsAsync_ValidHierarchy_ReturnsCorrectMetrics()
-        {
-            // Act
-            var metrics = await _analyzer.AnalyzeTransformsAsync(_testScene);
-
-            // Assert
-            Assert.That(metrics.NonIdentityTransformCount, Is.EqualTo(2));
-            Assert.That(metrics.NonUniformScaleCount, Is.EqualTo(1));
-            Assert.That(metrics.NonZeroRotationCount, Is.EqualTo(1));
-        }
-
-        [Test]
-        public async Task DetectInstancesAsync_ValidHierarchy_ReturnsCorrectMetrics()
+        public async Task AnalyzeHierarchyAsync_EmptyScene_ReturnsZeroValues()
         {
             // Arrange
-            var instanceNode = CreateInstanceNode();
-            _rootNode.Children.Add(instanceNode);
-
+            var emptyScene = new USDScene { Name = "EmptyScene", Nodes = new List<USDNode>() };
+            
             // Act
-            var metrics = await _analyzer.DetectInstancesAsync(_testScene);
-
+            var metrics = await _analyzer.AnalyzeHierarchyAsync(emptyScene);
+            
             // Assert
-            Assert.That(metrics.TotalInstanceCount, Is.EqualTo(1));
-            Assert.That(metrics.UniquePrototypeCount, Is.EqualTo(1));
-            Assert.That(metrics.PrototypeInstanceCounts["Prototype1"], Is.EqualTo(1));
+            Assert.NotNull(metrics);
+            Assert.AreEqual(0, metrics.TotalNodes);
+            Assert.AreEqual(0, metrics.MaxHierarchyDepth);
+            Assert.AreEqual(0, metrics.EmptyNodeCount);
         }
-
+        
         [Test]
-        public async Task AnalyzeHierarchyComplexityAsync_ValidHierarchy_ReturnsCorrectMetrics()
-        {
-            // Act
-            var metrics = await _analyzer.AnalyzeHierarchyComplexityAsync(_testScene);
-
-            // Assert
-            Assert.That(metrics.MaxDepth, Is.EqualTo(2));
-            Assert.That(metrics.HighChildCountNodeCount, Is.EqualTo(0));
-        }
-
-        [Test]
-        public async Task AnalyzeHierarchyComplexityAsync_HighChildCount_DetectsHighComplexity()
+        public async Task AnalyzeHierarchyAsync_NullNodesList_HandlesGracefully()
         {
             // Arrange
-            var highChildNode = CreateNodeWithManyChildren();
-            _rootNode.Children.Add(highChildNode);
-
+            var sceneWithNullNodes = new USDScene { Name = "NullNodesScene", Nodes = null };
+            
             // Act
-            var metrics = await _analyzer.AnalyzeHierarchyComplexityAsync(_testScene);
-
+            var metrics = await _analyzer.AnalyzeHierarchyAsync(sceneWithNullNodes);
+            
             // Assert
-            Assert.That(metrics.HighChildCountNodeCount, Is.EqualTo(1));
-            Assert.That(metrics.ComplexityOptimizationOpportunities.Count, Is.EqualTo(1));
-            Assert.That(metrics.ComplexityOptimizationOpportunities[0].Type, Is.EqualTo(OptimizationType.HighChildCount));
+            Assert.NotNull(metrics);
+            Assert.AreEqual(0, metrics.TotalNodes);
+            Assert.AreEqual(0, metrics.MaxHierarchyDepth);
         }
-
-        private Node CreateTestHierarchy()
+        
+        [Test]
+        public void AnalyzeHierarchyAsync_NullScene_ThrowsArgumentNullException()
         {
-            var root = new Node
+            // Assert
+            Assert.ThrowsAsync<System.ArgumentNullException>(async () => 
+                await _analyzer.AnalyzeHierarchyAsync(null));
+        }
+        
+        [Test]
+        public async Task AnalyzeHierarchyAsync_ComplexHierarchy_CalculatesDepthCorrectly()
+        {
+            // Arrange
+            var scene = new USDScene { Name = "DeepHierarchyScene" };
+            scene.Nodes = CreateDeepHierarchy(6); // 6 levels deep
+            
+            // Act
+            var metrics = await _analyzer.AnalyzeHierarchyAsync(scene);
+            
+            // Assert
+            Assert.AreEqual(6, metrics.MaxHierarchyDepth);
+            Assert.AreEqual(6, metrics.TotalNodes);
+        }
+        
+        [Test]
+        public async Task AnalyzeHierarchyAsync_SceneWithEmptyNodes_CountsEmptyNodesCorrectly()
+        {
+            // Arrange
+            var scene = new USDScene { Name = "EmptyNodesScene" };
+            scene.Nodes = new List<USDNode>
+            {
+                new USDNode { Name = "Root", Children = new List<USDNode>
+                {
+                    new USDNode { Name = "EmptyChild1" }, // Empty, no mesh or material
+                    new USDNode { Name = "EmptyChild2" }, // Empty, no mesh or material
+                    new USDNode { Name = "NonEmptyChild", Mesh = new USDOptimizer.Core.Models.Mesh { Name = "TestMesh" } }
+                }}
+            };
+            
+            // Act
+            var metrics = await _analyzer.AnalyzeHierarchyAsync(scene);
+            
+            // Assert
+            Assert.AreEqual(4, metrics.TotalNodes);
+            Assert.AreEqual(2, metrics.EmptyNodeCount);
+        }
+        
+        [Test]
+        public async Task AnalyzeHierarchyAsync_SceneWithMixedNodeTypes_CountsNodeTypesCorrectly()
+        {
+            // Arrange
+            var mesh = new USDOptimizer.Core.Models.Mesh { Name = "TestMesh" };
+            var material = new USDOptimizer.Core.Models.Material { Name = "TestMaterial" };
+            
+            var scene = new USDScene { Name = "MixedTypesScene" };
+            scene.Nodes = new List<USDNode>
+            {
+                new USDNode { Name = "Root", Children = new List<USDNode>
+                {
+                    new USDNode { Name = "MeshNode", Mesh = mesh },
+                    new USDNode { Name = "MaterialNode", Material = material },
+                    new USDNode { Name = "TransformNode" } // Just a transform node
+                }}
+            };
+            
+            // Act
+            var metrics = await _analyzer.AnalyzeHierarchyAsync(scene);
+            
+            // Assert
+            Assert.AreEqual(4, metrics.TotalNodes);
+            Assert.IsTrue(metrics.NodeTypeCounts.ContainsKey("Mesh"));
+            Assert.IsTrue(metrics.NodeTypeCounts.ContainsKey("Material"));
+            Assert.IsTrue(metrics.NodeTypeCounts.ContainsKey("Transform"));
+            Assert.AreEqual(1, metrics.NodeTypeCounts["Mesh"]);
+            Assert.AreEqual(1, metrics.NodeTypeCounts["Material"]);
+            Assert.AreEqual(2, metrics.NodeTypeCounts["Transform"]); // Root and TransformNode
+        }
+        
+        private List<USDNode> CreateTestHierarchy()
+        {
+            // Create a simple scene hierarchy with 3 levels:
+            // Root
+            // |-- Child1
+            // |   |-- GrandChild1
+            // |   |-- GrandChild2
+            // |-- Child2
+            // |-- Child3
+            
+            var grandChild1 = new USDNode { Name = "GrandChild1" };
+            var grandChild2 = new USDNode { Name = "GrandChild2" };
+            
+            var child1 = new USDNode
+            {
+                Name = "Child1",
+                Children = new List<USDNode> { grandChild1, grandChild2 }
+            };
+            
+            var child2 = new USDNode { Name = "Child2" };
+            var child3 = new USDNode { Name = "Child3" };
+            
+            var root = new USDNode
             {
                 Name = "Root",
-                Transform = Matrix4x4.identity,
-                Children = new List<Node>
-                {
-                    new Node
-                    {
-                        Name = "Child1",
-                        Transform = Matrix4x4.identity,
-                        Children = new List<Node>
-                        {
-                            new Node { Name = "Leaf1", Transform = Matrix4x4.identity },
-                            new Node { Name = "Leaf2", Transform = Matrix4x4.identity }
-                        }
-                    },
-                    new Node
-                    {
-                        Name = "Child2",
-                        Transform = Matrix4x4.TRS(
-                            new Vector3(1, 0, 0),
-                            Quaternion.Euler(0, 45, 0),
-                            new Vector3(1, 2, 1)
-                        ),
-                        Children = new List<Node>
-                        {
-                            new Node { Name = "Leaf3", Transform = Matrix4x4.identity }
-                        }
-                    }
-                }
+                Children = new List<USDNode> { child1, child2, child3 }
             };
-
-            return root;
+            
+            return new List<USDNode> { root };
         }
-
-        private Node CreateInstanceNode()
+        
+        private List<USDNode> CreateDeepHierarchy(int depth)
         {
-            return new Node
+            // Create a linear hierarchy with specified depth
+            USDNode currentNode = new USDNode { Name = $"Level_{depth}" };
+            
+            for (int i = depth - 1; i > 0; i--)
             {
-                Name = "Instance1",
-                Transform = Matrix4x4.identity,
-                IsInstance = true,
-                PrototypeName = "Prototype1"
-            };
-        }
-
-        private Node CreateNodeWithManyChildren()
-        {
-            var node = new Node
-            {
-                Name = "HighChildNode",
-                Transform = Matrix4x4.identity,
-                Children = new List<Node>()
-            };
-
-            // Add 101 children to exceed the threshold
-            for (int i = 0; i < 101; i++)
-            {
-                node.Children.Add(new Node
+                var parentNode = new USDNode
                 {
-                    Name = $"Child{i}",
-                    Transform = Matrix4x4.identity
-                });
+                    Name = $"Level_{i}",
+                    Children = new List<USDNode> { currentNode }
+                };
+                
+                currentNode = parentNode;
             }
-
-            return node;
+            
+            return new List<USDNode> { currentNode };
         }
     }
 } 

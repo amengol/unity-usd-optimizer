@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using USDOptimizer.Core.Analysis.Implementations;
+using USDOptimizer.Core.Analysis.Interfaces;
 using USDOptimizer.Core.Models;
 
 namespace USDOptimizer.Tests.Core.Analysis
@@ -10,171 +11,148 @@ namespace USDOptimizer.Tests.Core.Analysis
     public class MeshAnalyzerTests
     {
         private MeshAnalyzer _analyzer;
-        private Scene _testScene;
-        private Mesh _testMesh;
+        private USDScene _testScene;
+        private USDOptimizer.Core.Models.Mesh _testMesh;
+        private USDOptimizer.Core.Models.Material _testMaterial;
 
         [SetUp]
         public void Setup()
         {
             _analyzer = new MeshAnalyzer();
-            _testScene = new Scene { Name = "TestScene" };
+            _testScene = new USDScene { Name = "TestScene" };
+            _testMaterial = new USDOptimizer.Core.Models.Material { Name = "TestMaterial" };
+            
+            // Create test meshes
+            _testScene.Meshes = new List<USDOptimizer.Core.Models.Mesh>();
             _testMesh = CreateTestMesh();
             _testScene.Meshes.Add(_testMesh);
         }
 
         [Test]
-        public async Task AnalyzeMeshAsync_ValidMesh_ReturnsCorrectMetrics()
+        public async Task AnalyzeMeshesAsync_ValidScene_ReturnsCorrectMetrics()
         {
             // Act
-            var metrics = await _analyzer.AnalyzeMeshAsync(_testScene);
+            var metrics = await _analyzer.AnalyzeMeshesAsync(_testScene);
 
             // Assert
-            Assert.That(metrics.TotalPolygonCount, Is.EqualTo(2)); // 6 indices = 2 triangles
-            Assert.That(metrics.TotalVertexCount, Is.EqualTo(4));
-            Assert.That(metrics.MeshPolygonCounts[_testMesh.Name], Is.EqualTo(2));
-            Assert.That(metrics.MeshVertexCounts[_testMesh.Name], Is.EqualTo(4));
+            Assert.NotNull(metrics);
+            Assert.AreEqual(1, metrics.TotalMeshes);
+            Assert.AreEqual(6, metrics.TotalPolygons);
+            Assert.AreEqual(8, metrics.TotalVertices);
+            Assert.Greater(metrics.MemoryUsage, 0);
+            Assert.AreEqual(6, metrics.AveragePolygonsPerMesh);
         }
 
         [Test]
-        public async Task CalculatePolygonCountAsync_ValidMesh_ReturnsCorrectCount()
-        {
-            // Act
-            var count = await _analyzer.CalculatePolygonCountAsync(_testMesh);
-
-            // Assert
-            Assert.That(count, Is.EqualTo(2)); // 6 indices = 2 triangles
-        }
-
-        [Test]
-        public async Task CalculateVertexDensityAsync_ValidMesh_ReturnsCorrectDensity()
-        {
-            // Act
-            var metrics = await _analyzer.CalculateVertexDensityAsync(_testMesh);
-
-            // Assert
-            Assert.That(metrics.SurfaceArea, Is.GreaterThan(0));
-            Assert.That(metrics.VerticesPerUnitArea, Is.GreaterThan(0));
-        }
-
-        [Test]
-        public async Task AnalyzeUVMappingAsync_ValidMesh_ReturnsCorrectMetrics()
-        {
-            // Act
-            var metrics = await _analyzer.AnalyzeUVMappingAsync(_testMesh);
-
-            // Assert
-            Assert.That(metrics.UVSetCount, Is.EqualTo(1));
-            Assert.That(metrics.HasOverlappingUVs, Is.False);
-            Assert.That(metrics.HasUVSeams, Is.False);
-            Assert.That(metrics.HasProperUVLayout, Is.True);
-        }
-
-        [Test]
-        public async Task AnalyzeUVMappingAsync_OverlappingUVs_DetectsOverlap()
+        public async Task AnalyzeMeshesAsync_MultipleHighPolyMeshes_CountsHighPolyMeshes()
         {
             // Arrange
-            var mesh = CreateTestMeshWithOverlappingUVs();
+            var highPolyMesh1 = CreateHighPolyMesh("HighPoly1", 15000);
+            var highPolyMesh2 = CreateHighPolyMesh("HighPoly2", 20000);
+            _testScene.Meshes.Add(highPolyMesh1);
+            _testScene.Meshes.Add(highPolyMesh2);
 
             // Act
-            var metrics = await _analyzer.AnalyzeUVMappingAsync(mesh);
+            var metrics = await _analyzer.AnalyzeMeshesAsync(_testScene);
 
             // Assert
-            Assert.That(metrics.HasOverlappingUVs, Is.True);
-            Assert.That(metrics.UVIssues, Contains.Item("Mesh has overlapping UV coordinates"));
+            Assert.NotNull(metrics);
+            Assert.AreEqual(3, metrics.TotalMeshes);
+            Assert.AreEqual(2, metrics.HighPolyMeshCount);
+            Assert.AreEqual(35006, metrics.TotalPolygons);
+            Assert.AreEqual(70012, metrics.TotalVertices);
+            Assert.AreEqual(20000, metrics.MaxPolygonsInMesh);
         }
 
         [Test]
-        public async Task AnalyzeUVMappingAsync_UVSeams_DetectsSeams()
+        public async Task AnalyzeMeshesAsync_EmptyScene_ReturnsZeroValues()
         {
             // Arrange
-            var mesh = CreateTestMeshWithUVSeams();
+            var emptyScene = new USDScene { Name = "EmptyScene", Meshes = new List<USDOptimizer.Core.Models.Mesh>() };
 
             // Act
-            var metrics = await _analyzer.AnalyzeUVMappingAsync(mesh);
+            var metrics = await _analyzer.AnalyzeMeshesAsync(emptyScene);
 
             // Assert
-            Assert.That(metrics.HasUVSeams, Is.True);
-            Assert.That(metrics.UVIssues, Contains.Item("Mesh has UV seams"));
+            Assert.NotNull(metrics);
+            Assert.AreEqual(0, metrics.TotalMeshes);
+            Assert.AreEqual(0, metrics.TotalPolygons);
+            Assert.AreEqual(0, metrics.TotalVertices);
+            Assert.AreEqual(0, metrics.HighPolyMeshCount);
+            Assert.AreEqual(0, metrics.MemoryUsage);
         }
 
-        private Mesh CreateTestMesh()
+        [Test]
+        public async Task AnalyzeMeshesAsync_NullMeshList_HandlesGracefully()
         {
-            return new Mesh
+            // Arrange
+            var sceneWithNullMeshes = new USDScene { Name = "NullMeshScene", Meshes = null };
+
+            // Act
+            var metrics = await _analyzer.AnalyzeMeshesAsync(sceneWithNullMeshes);
+
+            // Assert
+            Assert.NotNull(metrics);
+            Assert.AreEqual(0, metrics.TotalMeshes);
+            Assert.AreEqual(0, metrics.TotalPolygons);
+        }
+
+        [Test]
+        public void AnalyzeMeshesAsync_NullScene_ThrowsArgumentNullException()
+        {
+            // Assert
+            Assert.ThrowsAsync<System.ArgumentNullException>(async () => 
+                await _analyzer.AnalyzeMeshesAsync(null));
+        }
+
+        [Test]
+        public async Task AnalyzeMeshesAsync_ComplexScene_CalculatesMemoryCorrectly()
+        {
+            // Arrange - create a scene with known vertex counts
+            var scene = new USDScene { Name = "MemoryTestScene", Meshes = new List<USDOptimizer.Core.Models.Mesh>() };
+            var mesh1 = CreateMeshWithVertexCount("Mesh1", 1000);
+            var mesh2 = CreateMeshWithVertexCount("Mesh2", 2000);
+            scene.Meshes.Add(mesh1);
+            scene.Meshes.Add(mesh2);
+
+            // Act
+            var metrics = await _analyzer.AnalyzeMeshesAsync(scene);
+
+            // Assert - verify memory calculation (32 bytes per vertex as per implementation)
+            Assert.AreEqual(3000, metrics.TotalVertices);
+            Assert.AreEqual(3000 * 32, metrics.MemoryUsage);
+        }
+
+        private USDOptimizer.Core.Models.Mesh CreateTestMesh()
+        {
+            return new USDOptimizer.Core.Models.Mesh
             {
                 Name = "TestMesh",
-                Vertices = new List<Vector3>
-                {
-                    new Vector3(0, 0, 0),
-                    new Vector3(1, 0, 0),
-                    new Vector3(0, 1, 0),
-                    new Vector3(1, 1, 0)
-                },
-                UVs = new List<Vector2>
-                {
-                    new Vector2(0, 0),
-                    new Vector2(1, 0),
-                    new Vector2(0, 1),
-                    new Vector2(1, 1)
-                },
-                PolygonIndices = new List<int> { 0, 1, 2, 1, 3, 2 },
-                Bounds = new Bounds(
-                    new Vector3(0.5f, 0.5f, 0),
-                    new Vector3(1, 1, 0)
-                )
+                PolygonCount = 6,
+                VertexCount = 8,
+                Material = _testMaterial
             };
         }
 
-        private Mesh CreateTestMeshWithOverlappingUVs()
+        private USDOptimizer.Core.Models.Mesh CreateHighPolyMesh(string name, int polyCount)
         {
-            return new Mesh
+            return new USDOptimizer.Core.Models.Mesh
             {
-                Name = "OverlappingUVMesh",
-                Vertices = new List<Vector3>
-                {
-                    new Vector3(0, 0, 0),
-                    new Vector3(1, 0, 0),
-                    new Vector3(0, 1, 0),
-                    new Vector3(1, 1, 0)
-                },
-                UVs = new List<Vector2>
-                {
-                    new Vector2(0, 0),
-                    new Vector2(0, 0), // Overlapping UV
-                    new Vector2(0, 1),
-                    new Vector2(1, 1)
-                },
-                PolygonIndices = new List<int> { 0, 1, 2, 1, 3, 2 },
-                Bounds = new Bounds(
-                    new Vector3(0.5f, 0.5f, 0),
-                    new Vector3(1, 1, 0)
-                )
+                Name = name,
+                PolygonCount = polyCount,
+                VertexCount = polyCount * 2, // Roughly 2 vertices per polygon
+                Material = _testMaterial
             };
         }
 
-        private Mesh CreateTestMeshWithUVSeams()
+        private USDOptimizer.Core.Models.Mesh CreateMeshWithVertexCount(string name, int vertexCount)
         {
-            return new Mesh
+            return new USDOptimizer.Core.Models.Mesh
             {
-                Name = "SeamedUVMesh",
-                Vertices = new List<Vector3>
-                {
-                    new Vector3(0, 0, 0),
-                    new Vector3(1, 0, 0),
-                    new Vector3(0, 1, 0),
-                    new Vector3(1, 1, 0)
-                },
-                UVs = new List<Vector2>
-                {
-                    new Vector2(0, 0),
-                    new Vector2(1, 0),
-                    new Vector2(0, 1),
-                    new Vector2(2, 1) // Large UV discontinuity
-                },
-                PolygonIndices = new List<int> { 0, 1, 2, 1, 3, 2 },
-                Bounds = new Bounds(
-                    new Vector3(0.5f, 0.5f, 0),
-                    new Vector3(1, 1, 0)
-                )
+                Name = name,
+                PolygonCount = vertexCount / 2, // Roughly 2 vertices per polygon
+                VertexCount = vertexCount,
+                Material = _testMaterial
             };
         }
     }
