@@ -4,6 +4,7 @@ using USDOptimizer.Core.Models;
 using USDOptimizer.Core.Optimization;
 using USDOptimizer.Core.Logging;
 using System;
+using System.Threading.Tasks;
 
 namespace USDOptimizer.Unity.Editor
 {
@@ -21,6 +22,9 @@ namespace USDOptimizer.Unity.Editor
         private bool _showSaveProfileDialog;
         private bool _showDeleteProfileDialog;
         private string _profileToDelete;
+        private USDSceneIO _sceneIO;
+        private Scene _currentScene;
+        private bool _hasLoadedScene;
 
         [MenuItem("Window/USD Scene Optimizer")]
         public static void ShowWindow()
@@ -32,6 +36,7 @@ namespace USDOptimizer.Unity.Editor
         {
             _settings = new SceneOptimizationSettings();
             _logger = new UnityLogger("USDSceneOptimizer");
+            _sceneIO = new USDSceneIO();
             OptimizationProfileManager.Instance.Refresh();
         }
 
@@ -40,6 +45,7 @@ namespace USDOptimizer.Unity.Editor
             _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
 
             DrawHeader();
+            DrawSceneIO();
             DrawProfileManagement();
             DrawSettings();
             DrawOptimizationButtons();
@@ -66,6 +72,99 @@ namespace USDOptimizer.Unity.Editor
             EditorGUILayout.Space(5);
             EditorGUILayout.HelpBox("Optimize your USD scenes for better real-time performance.", MessageType.Info);
             EditorGUILayout.Space(10);
+        }
+
+        private void DrawSceneIO()
+        {
+            EditorGUILayout.LabelField("Scene Import/Export", EditorStyles.boldLabel);
+            EditorGUILayout.Space(5);
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Import USD Scene"))
+            {
+                ImportScene();
+            }
+
+            GUI.enabled = _hasLoadedScene;
+            if (GUILayout.Button("Export USD Scene"))
+            {
+                ExportScene();
+            }
+            GUI.enabled = true;
+
+            EditorGUILayout.EndHorizontal();
+
+            if (_hasLoadedScene)
+            {
+                EditorGUILayout.HelpBox("Scene loaded successfully.", MessageType.Info);
+            }
+
+            EditorGUILayout.Space(10);
+        }
+
+        private async void ImportScene()
+        {
+            string filePath = _sceneIO.ShowImportDialog();
+            if (string.IsNullOrEmpty(filePath))
+            {
+                return;
+            }
+
+            _isOptimizing = true;
+            _statusMessage = "Importing USD scene...";
+            _progress = 0f;
+
+            try
+            {
+                _currentScene = await _sceneIO.ImportSceneAsync(filePath);
+                _hasLoadedScene = true;
+                _statusMessage = "USD scene imported successfully.";
+            }
+            catch (Exception ex)
+            {
+                _logger.Exception(ex, "Error importing USD scene");
+                _statusMessage = "Error importing USD scene. Check console for details.";
+            }
+            finally
+            {
+                _isOptimizing = false;
+                _progress = 0f;
+            }
+        }
+
+        private async void ExportScene()
+        {
+            if (_currentScene == null)
+            {
+                _statusMessage = "No scene loaded to export.";
+                return;
+            }
+
+            string filePath = _sceneIO.ShowExportDialog();
+            if (string.IsNullOrEmpty(filePath))
+            {
+                return;
+            }
+
+            _isOptimizing = true;
+            _statusMessage = "Exporting USD scene...";
+            _progress = 0f;
+
+            try
+            {
+                await _sceneIO.ExportSceneAsync(filePath, _currentScene);
+                _statusMessage = "USD scene exported successfully.";
+            }
+            catch (Exception ex)
+            {
+                _logger.Exception(ex, "Error exporting USD scene");
+                _statusMessage = "Error exporting USD scene. Check console for details.";
+            }
+            finally
+            {
+                _isOptimizing = false;
+                _progress = 0f;
+            }
         }
 
         private void DrawProfileManagement()
