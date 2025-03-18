@@ -1,4 +1,8 @@
-# Unity generated
+# Unity meta files
+*.meta
+!*.*.meta
+
+# Unity generated files
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
@@ -24,7 +28,7 @@ sysinfo.txt
 # Crashlytics generated file
 crashlytics-build.properties
 
-# Visual Studio
+# Visual Studio files
 .vs/
 *.csproj
 *.unityproj
@@ -33,7 +37,6 @@ crashlytics-build.properties
 *.tmp
 *.user
 *.userprefs
-*.pidb
 *.booproj
 *.svd
 *.pdb
@@ -41,7 +44,7 @@ crashlytics-build.properties
 *.opendb
 *.VC.db
 
-# OS generated
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
