@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using UnityEngine;
+using UnityEditor;
 using USDOptimizer.Core.Models;
 using USDOptimizer.Core.Optimization;
 using USDOptimizer.Core.IO;
@@ -34,9 +36,33 @@ namespace USDOptimizer.Core.Batch
 
         public List<string> ShowFolderDialog()
         {
-            // TODO: Implement folder dialog using Unity's EditorUtility.OpenFolderPanel
-            // This is a placeholder that returns an empty list
-            return new List<string>();
+            string folderPath = EditorUtility.OpenFolderPanel("Select USD Scenes Folder", "", "");
+            var scenePaths = new List<string>();
+            
+            if (!string.IsNullOrEmpty(folderPath))
+            {
+                try
+                {
+                    // Find all USD files in the selected folder
+                    string[] usdFiles = Directory.GetFiles(folderPath, "*.usd", SearchOption.AllDirectories);
+                    string[] usdaFiles = Directory.GetFiles(folderPath, "*.usda", SearchOption.AllDirectories);
+                    string[] usdcFiles = Directory.GetFiles(folderPath, "*.usdc", SearchOption.AllDirectories);
+                    
+                    // Combine results
+                    scenePaths.AddRange(usdFiles);
+                    scenePaths.AddRange(usdaFiles);
+                    scenePaths.AddRange(usdcFiles);
+                    
+                    _logger.LogInfo($"Found {scenePaths.Count} USD files in {folderPath}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Error listing USD files: {ex.Message}");
+                    EditorUtility.DisplayDialog("Error", $"Failed to list USD files: {ex.Message}", "OK");
+                }
+            }
+            
+            return scenePaths;
         }
 
         public async Task ProcessBatchAsync(List<string> scenePaths, OptimizationProfile profile)
@@ -56,40 +82,75 @@ namespace USDOptimizer.Core.Batch
                     throw new ArgumentNullException(nameof(profile), "Optimization profile cannot be null");
                 }
 
-                _logger.LogInfo($"Starting batch processing of {scenePaths.Count} scenes");
+                // Apply profile settings
+                var settings = new SceneOptimizationSettings();
+                profile.ApplyToSettings(settings);
 
-                for (int i = 0; i < scenePaths.Count; i++)
+                // Process each scene
+                int totalScenes = scenePaths.Count;
+                int processedScenes = 0;
+
+                foreach (string scenePath in scenePaths)
                 {
-                    if (_isCancelled)
-                    {
-                        _logger.LogWarning("Batch processing cancelled by user");
-                        break;
-                    }
-
-                    string scenePath = scenePaths[i];
-                    float progress = (float)i / scenePaths.Count;
-                    OnProgressChanged?.Invoke(progress);
-
                     try
                     {
-                        await ProcessSceneAsync(scenePath, profile);
-                        OnSceneProcessed?.Invoke(Path.GetFileName(scenePath));
+                        if (_isCancelled)
+                        {
+                            _logger.LogInfo("Batch processing cancelled");
+                            break;
+                        }
+
+                        string sceneName = Path.GetFileName(scenePath);
+                        OnSceneProcessed?.Invoke(sceneName);
+                        _logger.LogInfo($"Processing scene: {sceneName}");
+
+                        // Update progress
+                        float progress = (float)processedScenes / totalScenes;
+                        OnProgressChanged?.Invoke(progress);
+
+                        // Import scene
+                        var scene = await _sceneIO.ImportSceneAsync(scenePath);
+
+                        // Optimize scene
+                        var optimizedScene = await _sceneOptimizer.OptimizeSceneAsync(scene, settings);
+
+                        // Generate output path
+                        string outputDir = Path.Combine(Path.GetDirectoryName(scenePath), "Optimized");
+                        Directory.CreateDirectory(outputDir);
+                        string outputPath = Path.Combine(outputDir, $"{Path.GetFileNameWithoutExtension(scenePath)}_optimized{Path.GetExtension(scenePath)}");
+
+                        // Export optimized scene
+                        await _sceneIO.ExportSceneAsync(outputPath, optimizedScene);
+
+                        // Log results
+                        float polyReduction = 1.0f - ((float)optimizedScene.Statistics.TotalPolygons / scene.Statistics.TotalPolygons);
+                        float sizeReduction = 1.0f - (optimizedScene.Statistics.TotalFileSize / scene.Statistics.TotalFileSize);
+                        _logger.LogInfo($"Optimized {sceneName}: Polygon reduction: {polyReduction:P0}, Size reduction: {sizeReduction:P0}");
+
+                        // Update processed count
+                        processedScenes++;
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError($"Error processing scene {scenePath}: {ex.Message}");
-                        // Continue with next scene
-                        continue;
+                        _logger.LogError($"Error processing scene {Path.GetFileName(scenePath)}: {ex.Message}");
+                        // Continue with next scene instead of stopping the batch
                     }
                 }
 
-                OnProgressChanged?.Invoke(1f);
-                OnBatchCompleted?.Invoke();
+                // Update final progress
+                OnProgressChanged?.Invoke(1.0f);
+
+                if (!_isCancelled)
+                {
+                    _logger.LogInfo($"Batch processing completed. Processed {processedScenes} of {totalScenes} scenes.");
+                    OnBatchCompleted?.Invoke();
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Error during batch processing: {ex.Message}");
                 OnBatchError?.Invoke(ex);
+                throw;
             }
             finally
             {
@@ -99,41 +160,11 @@ namespace USDOptimizer.Core.Batch
 
         public void CancelBatch()
         {
-            _isCancelled = true;
-            _logger.LogInfo("Batch processing cancellation requested");
-        }
-
-        private async Task ProcessSceneAsync(string scenePath, OptimizationProfile profile)
-        {
-            try
+            if (_isProcessing)
             {
-                _logger.LogInfo($"Processing scene: {scenePath}");
-
-                // Import scene
-                var scene = await _sceneIO.ImportSceneAsync(scenePath);
-
-                // Optimize scene
-                var optimizedScene = await _sceneOptimizer.OptimizeSceneAsync(scene, profile.Settings);
-
-                // Export optimized scene
-                string outputPath = GetOutputPath(scenePath);
-                await _sceneIO.ExportSceneAsync(outputPath, optimizedScene);
-
-                _logger.LogInfo($"Successfully processed scene: {scenePath}");
+                _isCancelled = true;
+                _logger.LogInfo("Batch processing cancellation requested");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Error processing scene {scenePath}: {ex.Message}");
-                throw;
-            }
-        }
-
-        private string GetOutputPath(string inputPath)
-        {
-            string directory = Path.GetDirectoryName(inputPath);
-            string fileName = Path.GetFileNameWithoutExtension(inputPath);
-            string extension = Path.GetExtension(inputPath);
-            return Path.Combine(directory, $"{fileName}_Optimized{extension}");
         }
     }
 } 
