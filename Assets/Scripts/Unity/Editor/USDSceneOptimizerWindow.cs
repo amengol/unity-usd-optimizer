@@ -25,6 +25,10 @@ namespace USDOptimizer.Unity.Editor
         private USDSceneIO _sceneIO;
         private Scene _currentScene;
         private bool _hasLoadedScene;
+        private OptimizationPreviewManager _previewManager;
+        private bool _isPreviewActive;
+        private bool _showPreviewWindow;
+        private Vector2 _previewScrollPosition;
 
         [MenuItem("Window/USD Scene Optimizer")]
         public static void ShowWindow()
@@ -37,7 +41,23 @@ namespace USDOptimizer.Unity.Editor
             _settings = new SceneOptimizationSettings();
             _logger = new UnityLogger("USDSceneOptimizer");
             _sceneIO = new USDSceneIO();
+            _previewManager = new OptimizationPreviewManager(new SceneOptimizer());
+            _previewManager.OnPreviewProgressChanged += HandlePreviewProgressChanged;
+            _previewManager.OnPreviewUpdated += HandlePreviewUpdated;
+            _previewManager.OnPreviewCompleted += HandlePreviewCompleted;
+            _previewManager.OnPreviewError += HandlePreviewError;
             OptimizationProfileManager.Instance.Refresh();
+        }
+
+        private void OnDisable()
+        {
+            if (_previewManager != null)
+            {
+                _previewManager.OnPreviewProgressChanged -= HandlePreviewProgressChanged;
+                _previewManager.OnPreviewUpdated -= HandlePreviewUpdated;
+                _previewManager.OnPreviewCompleted -= HandlePreviewCompleted;
+                _previewManager.OnPreviewError -= HandlePreviewError;
+            }
         }
 
         private void OnGUI()
@@ -62,6 +82,11 @@ namespace USDOptimizer.Unity.Editor
             if (_showDeleteProfileDialog)
             {
                 DrawDeleteProfileDialog();
+            }
+
+            if (_showPreviewWindow)
+            {
+                DrawPreviewWindow();
             }
         }
 
@@ -308,7 +333,7 @@ namespace USDOptimizer.Unity.Editor
             EditorGUILayout.Space(20);
             EditorGUILayout.BeginHorizontal();
 
-            GUI.enabled = !_isOptimizing;
+            GUI.enabled = !_isOptimizing && !_isPreviewActive;
             if (GUILayout.Button("Analyze Scene"))
             {
                 AnalyzeScene();
@@ -317,6 +342,11 @@ namespace USDOptimizer.Unity.Editor
             if (GUILayout.Button("Optimize Scene"))
             {
                 OptimizeScene();
+            }
+
+            if (GUILayout.Button("Preview Optimization"))
+            {
+                _showPreviewWindow = true;
             }
 
             EditorGUILayout.EndHorizontal();
@@ -387,6 +417,95 @@ namespace USDOptimizer.Unity.Editor
                 _isOptimizing = false;
                 _progress = 0f;
             }
+        }
+
+        private void DrawPreviewWindow()
+        {
+            var rect = EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Optimization Preview", EditorStyles.boldLabel);
+            EditorGUILayout.Space(5);
+
+            _previewScrollPosition = EditorGUILayout.BeginScrollView(_previewScrollPosition);
+
+            if (_previewManager.IsPreviewActive)
+            {
+                EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(), _previewManager.PreviewProgress, "Generating Preview...");
+                EditorGUILayout.Space(5);
+
+                if (GUILayout.Button("Cancel Preview"))
+                {
+                    _previewManager.CancelPreview();
+                    _showPreviewWindow = false;
+                }
+            }
+            else
+            {
+                EditorGUILayout.HelpBox("Preview shows the effects of current optimization settings.", MessageType.Info);
+                EditorGUILayout.Space(5);
+
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("Generate Preview"))
+                {
+                    GeneratePreview();
+                }
+
+                if (GUILayout.Button("Close Preview"))
+                {
+                    _showPreviewWindow = false;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            EditorGUILayout.EndScrollView();
+            EditorGUILayout.EndVertical();
+        }
+
+        private async void GeneratePreview()
+        {
+            if (_currentScene == null)
+            {
+                _statusMessage = "No scene loaded to preview.";
+                return;
+            }
+
+            _isPreviewActive = true;
+            _statusMessage = "Generating optimization preview...";
+            _showPreviewWindow = true;
+
+            try
+            {
+                await _previewManager.StartPreviewAsync(_currentScene, _settings);
+            }
+            catch (Exception ex)
+            {
+                _logger.Exception(ex, "Error generating preview");
+                _statusMessage = "Error generating preview. Check console for details.";
+            }
+        }
+
+        private void HandlePreviewProgressChanged(float progress)
+        {
+            Repaint();
+        }
+
+        private void HandlePreviewUpdated(Scene previewScene)
+        {
+            // TODO: Update preview visualization
+            Repaint();
+        }
+
+        private void HandlePreviewCompleted()
+        {
+            _isPreviewActive = false;
+            _statusMessage = "Preview generated successfully.";
+            Repaint();
+        }
+
+        private void HandlePreviewError(Exception ex)
+        {
+            _isPreviewActive = false;
+            _statusMessage = "Error generating preview. Check console for details.";
+            Repaint();
         }
     }
 } 
