@@ -1,28 +1,30 @@
 using UnityEngine;
 using UnityEditor;
-using USDOptimizer.Core.Models;
+using System.IO;
+using USDOptimizer.Core.Optimization;
 
 namespace USDOptimizer.Unity.Editor
 {
-    /// <summary>
-    /// Creates and manages default optimization profiles
-    /// </summary>
     public static class DefaultOptimizationProfiles
     {
-        private const string PROFILES_FOLDER = "Assets/USDSceneOptimizer/Profiles";
+        private const string PROFILES_FOLDER = "Assets/Scripts/Unity/Editor/Profiles";
 
-        [MenuItem("USD Scene Optimizer/Create Default Profiles")]
         public static void CreateDefaultProfiles()
         {
             // Create profiles folder if it doesn't exist
-            if (!System.IO.Directory.Exists(PROFILES_FOLDER))
+            if (!Directory.Exists(PROFILES_FOLDER))
             {
-                System.IO.Directory.CreateDirectory(PROFILES_FOLDER);
+                Directory.CreateDirectory(PROFILES_FOLDER);
                 AssetDatabase.Refresh();
             }
 
+            // Create Performance profile
             CreatePerformanceProfile();
+            
+            // Create Balanced profile
             CreateBalancedProfile();
+            
+            // Create Quality profile
             CreateQualityProfile();
         }
 
@@ -30,12 +32,11 @@ namespace USDOptimizer.Unity.Editor
         {
             var profile = ScriptableObject.CreateInstance<OptimizationProfile>();
             profile.ProfileName = "Performance";
-            profile.Description = "Maximum performance optimization. Aggressive settings for best runtime performance.";
-            
-            var settings = new SceneOptimizationSettings
+            profile.Description = "Aggressive optimization for maximum performance";
+            profile.Settings = new SceneOptimizationSettings
             {
                 EnableLODGeneration = true,
-                LODLevels = 4,
+                LODLevels = 3,
                 EnableMeshSimplification = true,
                 TargetPolygonCount = 5000,
                 EnableTextureCompression = true,
@@ -44,11 +45,10 @@ namespace USDOptimizer.Unity.Editor
                 EnableInstanceOptimization = true,
                 SimilarityThreshold = 0.8f,
                 EnableHierarchyFlattening = true,
-                MaxHierarchyDepth = 3,
+                MaxHierarchyDepth = 2,
                 EnableTransformOptimization = true
             };
-            
-            profile.Settings = settings;
+
             SaveProfile(profile);
         }
 
@@ -56,12 +56,11 @@ namespace USDOptimizer.Unity.Editor
         {
             var profile = ScriptableObject.CreateInstance<OptimizationProfile>();
             profile.ProfileName = "Balanced";
-            profile.Description = "Balanced optimization. Good balance between performance and quality.";
-            
-            var settings = new SceneOptimizationSettings
+            profile.Description = "Balanced optimization between performance and quality";
+            profile.Settings = new SceneOptimizationSettings
             {
                 EnableLODGeneration = true,
-                LODLevels = 3,
+                LODLevels = 2,
                 EnableMeshSimplification = true,
                 TargetPolygonCount = 8000,
                 EnableTextureCompression = true,
@@ -70,11 +69,10 @@ namespace USDOptimizer.Unity.Editor
                 EnableInstanceOptimization = true,
                 SimilarityThreshold = 0.6f,
                 EnableHierarchyFlattening = true,
-                MaxHierarchyDepth = 5,
+                MaxHierarchyDepth = 3,
                 EnableTransformOptimization = true
             };
-            
-            profile.Settings = settings;
+
             SaveProfile(profile);
         }
 
@@ -82,9 +80,8 @@ namespace USDOptimizer.Unity.Editor
         {
             var profile = ScriptableObject.CreateInstance<OptimizationProfile>();
             profile.ProfileName = "Quality";
-            profile.Description = "Quality-focused optimization. Preserves visual quality while still improving performance.";
-            
-            var settings = new SceneOptimizationSettings
+            profile.Description = "Conservative optimization preserving visual quality";
+            profile.Settings = new SceneOptimizationSettings
             {
                 EnableLODGeneration = true,
                 LODLevels = 2,
@@ -96,18 +93,17 @@ namespace USDOptimizer.Unity.Editor
                 EnableInstanceOptimization = true,
                 SimilarityThreshold = 0.4f,
                 EnableHierarchyFlattening = false,
-                MaxHierarchyDepth = 7,
+                MaxHierarchyDepth = 4,
                 EnableTransformOptimization = true
             };
-            
-            profile.Settings = settings;
+
             SaveProfile(profile);
         }
 
         private static void SaveProfile(OptimizationProfile profile)
         {
-            string path = System.IO.Path.Combine(PROFILES_FOLDER, $"{profile.ProfileName}.asset");
-            AssetDatabase.CreateAsset(profile, path);
+            string assetPath = Path.Combine(PROFILES_FOLDER, $"{profile.ProfileName}.asset");
+            AssetDatabase.CreateAsset(profile, assetPath);
             AssetDatabase.SaveAssets();
         }
     }

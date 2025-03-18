@@ -21,5 +21,12 @@
   },
   "dependencies": {
     "com.unity.test-framework": "1.1.33"
-  }
+  },
+  "samples": [
+    {
+      "displayName": "Test Scenes",
+      "description": "Sample USD scenes for testing",
+      "path": "Samples/TestScenes"
+    }
+  ]
 } 
