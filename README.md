@@ -10,6 +10,9 @@ A Unity editor tool for analyzing and optimizing USD scenes, helping developers 
 - Detailed reporting and visualization
 - USD-specific optimizations
 
+## User Interface
+![USD Scene Optimizer UI](Images/ui.jpg)
+
 ## Requirements
 
 - Unity 2022.3 LTS or later
