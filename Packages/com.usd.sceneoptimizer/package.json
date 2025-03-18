@@ -1,0 +1,25 @@
+{
+  "name": "com.usd.sceneoptimizer",
+  "version": "1.0.0",
+  "displayName": "USD Scene Optimizer",
+  "description": "A Unity tool for analyzing and optimizing USD scenes for real-time performance",
+  "unity": "2022.3",
+  "documentationUrl": "https://github.com/amengol/USDSceneOptimizer/Documentation~/Documentation.md",
+  "changelogUrl": "https://github.com/amengol/USDSceneOptimizer/CHANGELOG.md",
+  "licensesUrl": "https://github.com/amengol/USDSceneOptimizer/LICENSE.md",
+  "keywords": [
+    "usd",
+    "optimization",
+    "performance",
+    "scene",
+    "tool"
+  ],
+  "author": {
+    "name": "Jorge Amengol",
+    "email": "jorge.amengol@gmail.com",
+    "url": "https://github.com/amengol/unity-usd-optimizer"
+  },
+  "dependencies": {
+    "com.unity.test-framework": "1.1.33"
+  }
+} 
