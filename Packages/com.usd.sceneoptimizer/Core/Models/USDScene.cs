@@ -69,38 +69,6 @@ namespace USDOptimizer.Core.Models
         }
     }
 
-    public class SceneStatistics
-    {
-        public int TotalNodes { get; set; }
-        public int TotalPolygons { get; set; }
-        public int TotalVertices { get; set; }
-        public int TotalMaterials { get; set; }
-        public int TotalTextures { get; set; }
-        public float TotalFileSize { get; set; }
-        public Dictionary<string, int> NodeTypeCounts { get; set; } = new Dictionary<string, int>();
-    }
-    
-    public class Mesh
-    {
-        public string Name { get; set; }
-        public int PolygonCount { get; set; }
-        public int VertexCount { get; set; }
-        public Material Material { get; set; }
-    }
-    
-    public class Material
-    {
-        public string Name { get; set; }
-    }
-    
-    public class Texture
-    {
-        public string Name { get; set; }
-        public int Width { get; set; }
-        public int Height { get; set; }
-        public long Size { get; set; }
-    }
-    
     public class OptimizationResult
     {
         public string Type { get; set; }
@@ -121,4 +89,4 @@ namespace USDOptimizer.Core.Models
         public float ScreenPercentage { get; set; }
         public Mesh Mesh { get; set; }
     }
-} 
+}
