@@ -35,6 +35,14 @@ namespace USDOptimizer.Core.Optimization
         // Transform Optimization
         public bool EnableTransformOptimization { get; set; } = true;
         
+        // Instance Optimization (from errors)
+        public bool OptimizeInstances { get; set; } = true;
+        public float InstanceSimilarityThreshold { get; set; } = 0.8f;
+        
+        // Hierarchy Flattening (from errors)
+        public bool FlattenHierarchy { get; set; } = true;
+        public int MaxFlattenDepth { get; set; } = 4;
+        
         public SceneOptimizationSettings()
         {
             // Default constructor with default values
@@ -55,7 +63,12 @@ namespace USDOptimizer.Core.Optimization
                 SimilarityThreshold = this.SimilarityThreshold,
                 EnableHierarchyFlattening = this.EnableHierarchyFlattening,
                 MaxHierarchyDepth = this.MaxHierarchyDepth,
-                EnableTransformOptimization = this.EnableTransformOptimization
+                EnableTransformOptimization = this.EnableTransformOptimization,
+                // New properties
+                OptimizeInstances = this.OptimizeInstances,
+                InstanceSimilarityThreshold = this.InstanceSimilarityThreshold,
+                FlattenHierarchy = this.FlattenHierarchy,
+                MaxFlattenDepth = this.MaxFlattenDepth
             };
         }
         
@@ -88,6 +101,21 @@ namespace USDOptimizer.Core.Optimization
             if (MaxHierarchyDepth <= 0)
             {
                 MaxHierarchyDepth = 1;
+            }
+            
+            // Validate new properties
+            if (InstanceSimilarityThreshold < 0f)
+            {
+                InstanceSimilarityThreshold = 0f;
+            }
+            else if (InstanceSimilarityThreshold > 1f)
+            {
+                InstanceSimilarityThreshold = 1f;
+            }
+            
+            if (MaxFlattenDepth <= 0)
+            {
+                MaxFlattenDepth = 1;
             }
         }
     }

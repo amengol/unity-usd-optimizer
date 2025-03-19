@@ -26,7 +26,7 @@ namespace USDOptimizer.Core.Models
         /// <summary>
         /// Creates a translation matrix
         /// </summary>
-        public static Matrix4x4 Translate(Vector3 vector)
+        public static Matrix4x4 Translate(USDOptimizer.Core.Models.Vector3 vector)
         {
             Matrix4x4 result = identity;
             result.m03 = vector.x;
@@ -38,7 +38,7 @@ namespace USDOptimizer.Core.Models
         /// <summary>
         /// Creates a scale matrix
         /// </summary>
-        public static Matrix4x4 Scale(Vector3 vector)
+        public static Matrix4x4 Scale(USDOptimizer.Core.Models.Vector3 vector)
         {
             Matrix4x4 result = identity;
             result.m00 = vector.x;

@@ -5,6 +5,7 @@ using System.Linq;
 using USDOptimizer.Core.Models;
 using USDOptimizer.Core.Logging;
 using USDOptimizer.Core.Optimization.Interfaces;
+using USDOptimizer.Core.Extensions;
 
 namespace USDOptimizer.Core.Optimization.Implementations
 {
@@ -64,7 +65,7 @@ namespace USDOptimizer.Core.Optimization.Implementations
                 optimizedScene = await FlattenHierarchyAsync(optimizedScene, settings.MaxFlattenDepth);
             }
 
-            if (settings.OptimizeTransforms)
+            if (settings.EnableTransformOptimization)
             {
                 optimizedScene = await OptimizeTransformsAsync(optimizedScene);
             }

@@ -9,6 +9,7 @@ using USDOptimizer.Core.Models;
 using USDOptimizer.Core.Optimization;
 using USDOptimizer.Core.IO;
 using USDOptimizer.Core.Logging;
+using USDOptimizer.Core.Extensions;
 
 namespace USDOptimizer.Core.Batch
 {

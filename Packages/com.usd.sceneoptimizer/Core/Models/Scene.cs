@@ -178,5 +178,10 @@ namespace USDOptimizer.Core.Models
         public int TotalMaterials { get; set; }
         public float EstimatedMemoryUsageMB { get; set; }
         public float EstimatedFileSizeMB { get; set; }
+        
+        // Missing properties from errors
+        public int TotalTextures { get; set; }
+        public float TotalFileSize { get; set; }
+        public Dictionary<string, int> NodeTypeCounts { get; set; } = new Dictionary<string, int>();
     }
 } 

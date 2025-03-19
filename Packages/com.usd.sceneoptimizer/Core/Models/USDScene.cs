@@ -79,7 +79,7 @@ namespace USDOptimizer.Core.Models
     public class LODGroup
     {
         public string Name { get; set; }
-        public Mesh OriginalMesh { get; set; }
+        public USDOptimizer.Core.Models.Mesh OriginalMesh { get; set; }
         public List<LODLevel> LODLevels { get; set; } = new List<LODLevel>();
     }
     
@@ -87,6 +87,6 @@ namespace USDOptimizer.Core.Models
     {
         public int Level { get; set; }
         public float ScreenPercentage { get; set; }
-        public Mesh Mesh { get; set; }
+        public USDOptimizer.Core.Models.Mesh Mesh { get; set; }
     }
 }

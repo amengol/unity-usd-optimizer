@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using USDOptimizer.Core.Models;
 using USDOptimizer.Core.Logging;
+using USDOptimizer.Core.Extensions;
 
 namespace USDOptimizer.Core.Optimization
 {
@@ -66,17 +68,35 @@ namespace USDOptimizer.Core.Optimization
             {
                 foreach (var mesh in scene.Meshes)
                 {
-                    if (mesh.PolygonCount > targetPolygonCount)
+                    if (mesh.PolygonCount() > targetPolygonCount)
                     {
                         // Calculate reduction ratio
-                        float reductionRatio = (float)targetPolygonCount / mesh.PolygonCount;
+                        float reductionRatio = (float)targetPolygonCount / mesh.PolygonCount();
                         
                         // Apply simplification (in a real implementation, this would use a mesh decimation algorithm)
-                        int originalPolygons = mesh.PolygonCount;
-                        mesh.PolygonCount = Math.Max(targetPolygonCount, (int)(mesh.PolygonCount * reductionRatio));
-                        mesh.VertexCount = (int)(mesh.VertexCount * reductionRatio);
+                        int originalPolygons = mesh.PolygonCount();
                         
-                        _logger.LogInfo($"Simplified mesh '{mesh.Name}' from {originalPolygons} to {mesh.PolygonCount} polygons");
+                        // Since we can't assign to PolygonCount() or VertexCount() as they are methods, not properties,
+                        // we need to modify the underlying data (PolygonIndices and Vertices)
+                        if (mesh.PolygonIndices != null && mesh.PolygonIndices.Count > 0)
+                        {
+                            int targetIndices = targetPolygonCount * 3; // 3 indices per triangle
+                            if (mesh.PolygonIndices.Count > targetIndices)
+                            {
+                                mesh.PolygonIndices.RemoveRange(targetIndices, mesh.PolygonIndices.Count - targetIndices);
+                            }
+                        }
+                        
+                        if (mesh.Vertices != null && mesh.Vertices.Count > 0)
+                        {
+                            int targetVertices = (int)(mesh.Vertices.Count * reductionRatio);
+                            if (mesh.Vertices.Count > targetVertices)
+                            {
+                                mesh.Vertices.RemoveRange(targetVertices, mesh.Vertices.Count - targetVertices);
+                            }
+                        }
+                        
+                        _logger.LogInfo($"Simplified mesh '{mesh.Name}' from {originalPolygons} to {mesh.PolygonCount()} polygons");
                         simplifiedCount++;
                     }
                 }
@@ -98,12 +118,12 @@ namespace USDOptimizer.Core.Optimization
 
             await Task.Run(() =>
             {
-                var eligibleMeshes = new List<Mesh>();
+                var eligibleMeshes = new List<USDOptimizer.Core.Models.Mesh>();
                 
                 // Find eligible meshes for LOD generation (in this case, high-poly meshes)
                 foreach (var mesh in scene.Meshes)
                 {
-                    if (mesh.PolygonCount > 1000) // Arbitrary threshold for high-poly meshes
+                    if (mesh.PolygonCount() > 1000) // Arbitrary threshold for high-poly meshes
                     {
                         eligibleMeshes.Add(mesh);
                     }
@@ -113,11 +133,11 @@ namespace USDOptimizer.Core.Optimization
                 foreach (var mesh in eligibleMeshes)
                 {
                     // Create LOD group
-                    var lodGroup = new LODGroup
+                    var lodGroup = new USDOptimizer.Core.Models.LODGroup
                     {
                         Name = $"{mesh.Name}_LODGroup",
                         OriginalMesh = mesh,
-                        LODLevels = new List<LODLevel>()
+                        LODLevels = new List<USDOptimizer.Core.Models.LODLevel>()
                     };
                     
                     // Generate LOD levels
@@ -128,12 +148,18 @@ namespace USDOptimizer.Core.Optimization
                         var lodMesh = new USDOptimizer.Core.Models.Mesh
                         {
                             Name = $"{mesh.Name}_LOD{i}",
-                            PolygonCount = (int)(mesh.PolygonCount * reductionFactor),
-                            VertexCount = (int)(mesh.VertexCount * reductionFactor),
-                            Material = mesh.Material
+                            PolygonIndices = mesh.PolygonIndices != null 
+                                ? new List<int>(mesh.PolygonIndices.Take((int)(mesh.PolygonIndices.Count * reductionFactor))) 
+                                : new List<int>(),
+                            Vertices = mesh.Vertices != null 
+                                ? new List<USDOptimizer.Core.Models.Vector3>(mesh.Vertices.Take((int)(mesh.Vertices.Count * reductionFactor))) 
+                                : new List<USDOptimizer.Core.Models.Vector3>(),
+                            UVs = mesh.UVs != null 
+                                ? new List<USDOptimizer.Core.Models.Vector2>(mesh.UVs.Take((int)(mesh.UVs.Count * reductionFactor)))
+                                : new List<USDOptimizer.Core.Models.Vector2>()
                         };
                         
-                        var lodLevel = new LODLevel
+                        var lodLevel = new USDOptimizer.Core.Models.LODLevel
                         {
                             Level = i,
                             ScreenPercentage = 1.0f - (i * 0.25f), // Screen percentage threshold

@@ -5,6 +5,7 @@ using System.Linq;
 using USDOptimizer.Core.Models;
 using USDOptimizer.Core.Logging;
 using UnityEngine;
+using USDOptimizer.Core.Extensions;
 
 namespace USDOptimizer.Core.Optimization
 {
@@ -95,9 +96,9 @@ namespace USDOptimizer.Core.Optimization
             return new USDOptimizer.Core.Models.Mesh
             {
                 Name = original.Name,
-                PolygonCount = original.PolygonCount,
-                VertexCount = original.VertexCount,
-                Material = original.Material != null ? CloneMaterial(original.Material) : null
+                PolygonIndices = original.PolygonIndices != null ? new List<int>(original.PolygonIndices) : new List<int>(),
+                Vertices = original.Vertices != null ? new List<USDOptimizer.Core.Models.Vector3>(original.Vertices) : new List<USDOptimizer.Core.Models.Vector3>(),
+                UVs = original.UVs != null ? new List<USDOptimizer.Core.Models.Vector2>(original.UVs) : new List<USDOptimizer.Core.Models.Vector2>()
             };
         }
         
@@ -120,7 +121,7 @@ namespace USDOptimizer.Core.Optimization
                 Name = original.Name,
                 Width = original.Width,
                 Height = original.Height,
-                Size = original.Size
+                Format = original.Format
             };
         }
 
@@ -254,13 +255,13 @@ namespace USDOptimizer.Core.Optimization
                     if (texture.Width > 1024 || texture.Height > 1024)
                     {
                         float compressionFactor = 0.5f;
-                        long originalSize = texture.Size;
+                        long originalSize = texture.Size();
                         
                         texture.Width = (int)(texture.Width * compressionFactor);
                         texture.Height = (int)(texture.Height * compressionFactor);
-                        texture.Size = (long)(texture.Size * compressionFactor * compressionFactor);
+                        // We can't assign to Size() as it's a method, not a property
                         
-                        _logger.LogInfo($"Compressed texture '{texture.Name}' from {originalSize} to {texture.Size} bytes");
+                        _logger.LogInfo($"Compressed texture '{texture.Name}' from {originalSize} to {texture.Size()} bytes");
                         compressedCount++;
                     }
                 }
@@ -413,8 +414,8 @@ namespace USDOptimizer.Core.Optimization
             
             foreach (var mesh in scene.Meshes)
             {
-                totalPolygons += mesh.PolygonCount;
-                totalVertices += mesh.VertexCount;
+                totalPolygons += mesh.PolygonCount();
+                totalVertices += mesh.VertexCount();
             }
             
             // Count node types
@@ -498,8 +499,8 @@ namespace USDOptimizer.Core.Optimization
             // Add size for each mesh (rough estimate based on vertex and polygon count)
             foreach (var mesh in scene.Meshes)
             {
-                size += mesh.VertexCount * 0.05f; // ~50 bytes per vertex
-                size += mesh.PolygonCount * 0.012f; // ~12 bytes per polygon
+                size += mesh.VertexCount() * 0.05f; // ~50 bytes per vertex
+                size += mesh.PolygonCount() * 0.012f; // ~12 bytes per polygon
             }
             
             // Add size for each material
@@ -508,7 +509,7 @@ namespace USDOptimizer.Core.Optimization
             // Add size for each texture
             foreach (var texture in scene.Textures)
             {
-                size += texture.Size;
+                size += texture.Size();
             }
             
             // Add overhead

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using USDOptimizer.Core.Analysis.Interfaces;
 using USDOptimizer.Core.Logging;
 using USDOptimizer.Core.Models;
+using USDOptimizer.Core.Extensions;
 
 namespace USDOptimizer.Core.Analysis.Implementations
 {
@@ -244,7 +245,7 @@ namespace USDOptimizer.Core.Analysis.Implementations
             long estimatedSize = 0;
             
             estimatedSize += scene.Nodes?.Count * 1024 ?? 0; // 1KB per node
-            estimatedSize += scene.Meshes?.Sum(m => m.VertexCount * 32) ?? 0; // 32 bytes per vertex
+            estimatedSize += scene.Meshes?.Sum(m => m.VertexCount()) ?? 0; // 32 bytes per vertex
             estimatedSize += scene.Materials?.Count * 2048 ?? 0; // 2KB per material
             estimatedSize += scene.Textures?.Sum(t => t.Width * t.Height * 4) ?? 0; // 4 bytes per pixel
             

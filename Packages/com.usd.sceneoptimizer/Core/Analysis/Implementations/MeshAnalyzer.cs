@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using USDOptimizer.Core.Analysis.Interfaces;
 using USDOptimizer.Core.Logging;
 using USDOptimizer.Core.Models;
+using USDOptimizer.Core.Extensions;
 
 namespace USDOptimizer.Core.Analysis.Implementations
 {
@@ -47,8 +48,8 @@ namespace USDOptimizer.Core.Analysis.Implementations
                 
                 // Gather basic metrics
                 metrics.TotalMeshes = scene.Meshes.Count;
-                metrics.TotalPolygons = scene.Meshes.Sum(m => m.PolygonCount);
-                metrics.TotalVertices = scene.Meshes.Sum(m => m.VertexCount);
+                metrics.TotalPolygons = scene.Meshes.Sum(m => m.PolygonCount());
+                metrics.TotalVertices = scene.Meshes.Sum(m => m.VertexCount());
                 
                 // Calculate average and maximum
                 metrics.AveragePolygonsPerMesh = metrics.TotalMeshes > 0 
@@ -56,11 +57,11 @@ namespace USDOptimizer.Core.Analysis.Implementations
                     : 0;
                     
                 metrics.MaxPolygonsInMesh = scene.Meshes.Count > 0 
-                    ? scene.Meshes.Max(m => m.PolygonCount) 
+                    ? scene.Meshes.Max(m => m.PolygonCount()) 
                     : 0;
                 
                 // Count high-poly meshes
-                metrics.HighPolyMeshCount = scene.Meshes.Count(m => m.PolygonCount > HIGH_POLY_THRESHOLD);
+                metrics.HighPolyMeshCount = scene.Meshes.Count(m => m.PolygonCount() > HIGH_POLY_THRESHOLD);
                 
                 // Estimate memory usage
                 metrics.MemoryUsage = metrics.TotalVertices * BYTES_PER_VERTEX;

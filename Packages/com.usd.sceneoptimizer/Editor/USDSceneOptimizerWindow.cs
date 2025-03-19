@@ -26,16 +26,23 @@ namespace USDOptimizer.Unity.Editor
         private string _statusMessage;
         private bool _isProcessing;
         private bool _showPreviewWindow;
-        private Vector2 _previewScrollPosition;
+        private UnityEngine.Vector2 _previewScrollPosition;
         private BatchProcessor _batchProcessor;
         private List<string> _selectedScenes;
         private bool _showBatchProcessing;
-        private Vector2 _batchScrollPosition;
+        private UnityEngine.Vector2 _batchScrollPosition;
         private SceneAnalyzer _sceneAnalyzer;
         private AnalysisResults _analysisResults;
         private USDScene _currentUsdScene;
         private USDScene _optimizedScene;
         private List<OptimizationResult> _optimizationResults;
+        private GUIStyle _sectionHeaderStyle;
+        private GUIStyle _buttonStyle;
+        private GUIStyle _dropZoneStyle;
+        private GUIStyle _resultHeaderStyle;
+        private GUIStyle _tabStyle;
+        private UnityEngine.Vector2 _minWindowSize;
+        private UnityEngine.Vector2[] _tabSizes;
 
         private void OnEnable()
         {
@@ -343,12 +350,28 @@ namespace USDOptimizer.Unity.Editor
             // Create dummy mesh data based on analysis
             for (int i = 0; i < 10; i++) // Create some sample meshes
             {
-                scene.Meshes.Add(new USDOptimizer.Core.Models.Mesh
+                var mesh = new USDOptimizer.Core.Models.Mesh
                 {
-                    Name = $"Mesh_{i}",
-                    PolygonCount = _analysisResults.TotalPolygons / 10,
-                    VertexCount = _analysisResults.TotalVertices / 10
-                });
+                    Name = $"Mesh_{i}"
+                };
+                
+                // Create polygon indices (triangles)
+                int polygonCount = _analysisResults.TotalPolygons / 10;
+                mesh.PolygonIndices = new List<int>();
+                for (int j = 0; j < polygonCount * 3; j++) // 3 indices per triangle
+                {
+                    mesh.PolygonIndices.Add(j % 3); // Simple pattern of 0,1,2,0,1,2,...
+                }
+                
+                // Create vertices (just enough to match vertex count)
+                int vertexCount = _analysisResults.TotalVertices / 10;
+                mesh.Vertices = new List<USDOptimizer.Core.Models.Vector3>();
+                for (int j = 0; j < vertexCount; j++)
+                {
+                    mesh.Vertices.Add(new USDOptimizer.Core.Models.Vector3(j % 10, j % 10, j % 10));
+                }
+                
+                scene.Meshes.Add(mesh);
             }
 
             // Create dummy material data
@@ -368,7 +391,7 @@ namespace USDOptimizer.Unity.Editor
                     Name = $"Texture_{i}",
                     Width = 1024,
                     Height = 1024,
-                    Size = (long)(_analysisResults.TotalMemoryUsage / _analysisResults.TotalTextures)
+                    Format = "RGBA" // Adding format instead of Size property
                 });
             }
 
@@ -834,6 +857,55 @@ namespace USDOptimizer.Unity.Editor
                 default:
                     return OptimizationPriority.Low;
             }
+        }
+
+        private void InitializeStyles()
+        {
+            // Initialize window styles
+            _sectionHeaderStyle = new GUIStyle(EditorStyles.boldLabel)
+            {
+                fontSize = 14,
+                margin = new RectOffset(0, 0, 10, 10)
+            };
+            
+            _buttonStyle = new GUIStyle(GUI.skin.button)
+            {
+                padding = new RectOffset(10, 10, 6, 6),
+                margin = new RectOffset(0, 0, 5, 5)
+            };
+            
+            _dropZoneStyle = new GUIStyle(GUI.skin.box)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold,
+                fontSize = 12,
+                padding = new RectOffset(20, 20, 20, 20),
+                margin = new RectOffset(20, 20, 10, 10),
+                normal = { textColor = Color.white }
+            };
+            
+            _resultHeaderStyle = new GUIStyle(EditorStyles.boldLabel)
+            {
+                fontSize = 12,
+                margin = new RectOffset(0, 0, 5, 5)
+            };
+            
+            _tabStyle = new GUIStyle(EditorStyles.toolbarButton)
+            {
+                fontStyle = FontStyle.Bold,
+                fixedHeight = 30,
+                fontSize = 12,
+                margin = new RectOffset(5, 5, 5, 5)
+            };
+            
+            // Size configuration
+            _minWindowSize = new UnityEngine.Vector2(600, 400);
+            
+            // Tab configuration
+            _tabSizes = new UnityEngine.Vector2[3];
+            _tabSizes[0] = new UnityEngine.Vector2(150, 30); // Import tab
+            _tabSizes[1] = new UnityEngine.Vector2(150, 30); // Analyze tab
+            _tabSizes[2] = new UnityEngine.Vector2(150, 30); // Optimize tab
         }
     }
 } 
