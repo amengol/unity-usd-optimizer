@@ -6,7 +6,8 @@
         "UnityEditor.TestRunner",
         "USDOptimizer.Core",
         "USDOptimizer.Editor",
-        "USDSceneOptimizer.Runtime"
+        "USDSceneOptimizer.Runtime",
+        "USDOptimizer.Assets.Core"
     ],
     "includePlatforms": [
         "Editor"

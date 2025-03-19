@@ -5,7 +5,8 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "USDOptimizer.Core",
-        "USDSceneOptimizer.Runtime"
+        "USDSceneOptimizer.Runtime",
+        "USDOptimizer.Assets.Core"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
