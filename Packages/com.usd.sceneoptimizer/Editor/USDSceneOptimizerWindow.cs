@@ -184,18 +184,20 @@ namespace USDOptimizer.Unity.Editor
                     _currentScene = Path.GetFileName(path);
                     _progress = 0f;
 
-                    await _sceneIO.ImportSceneAsync(path);
+                    // Store the result in _currentUsdScene
+                    _currentUsdScene = await _sceneIO.ImportSceneAsync(path);
                     _statusMessage = "Scene imported successfully!";
                 }
             }
             catch (Exception ex)
             {
                 _statusMessage = $"Error importing scene: {ex.Message}";
+                _currentUsdScene = null;
             }
             finally
             {
                 _isProcessing = false;
-                _currentScene = null;
+                // Don't set _currentScene to null here as we need it for reference
                 _progress = 0f;
             }
         }
@@ -204,6 +206,13 @@ namespace USDOptimizer.Unity.Editor
         {
             try
             {
+                // First verify that we have a scene to analyze
+                if (_currentUsdScene == null)
+                {
+                    _statusMessage = "Error: No scene loaded. Please import a USD scene first.";
+                    return;
+                }
+                
                 _isProcessing = true;
                 _statusMessage = "Analyzing scene...";
                 _progress = 0f;
